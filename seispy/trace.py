@@ -2,70 +2,7 @@ from gwpy.timeseries import TimeSeries
 from gwpy.spectrum import Spectrum
 import numpy as np
 import scipy
-from collections import OrderedDict
 import glob
-
-
-class Station(OrderedDict):
-    """
-    Station class
-
-    initialize station class by:
-    >>> frame = 'M-SEISMIC-1125384593-4096.gwf'
-    >>> station_name = 'DEAD'
-    >>> sta = Station(station_name, st, et)
-    >>> print sta
-    """
-
-    def __init__(self, st, et, station):
-        super(Station, self).__init__()
-        self.station = station
-        self.st = st
-        self.et = et
-        self['Z'] = read_frame('M-SEISMIC-1125384593-4096.gwf',
-                               station + ':HHZ', st=st, et=et)
-        self['N'] = read_frame('M-SEISMIC-1125384593-4096.gwf',
-                               station + ':HHN', st=st, et=et)
-        self['E'] = read_frame('M-SEISMIC-1125384593-4096.gwf',
-                               station + ':HHE', st=st, et=et)
-        self.location = self['Z'].location
-
-
-class StationArray(OrderedDict):
-    """
-    StationArray class
-
-    >>> frame = 'M-SEISMIC-1125384593-4096.gwf'
-    >>> station_names = ['DEAD','D4850']
-    >>> arr = StationArray(station_names, st, et)
-    >>> print arr
-    >>> arr[station_name[0]]['Z']
-    """
-
-    def __init__(self, st, et, stations):
-        super(StationArray, self).__init__()
-        self.st = st
-        self.et = et
-        self.stations = stations
-        for station in stations:
-            self[station] = Station(st, et, station)
-
-    def coherence(self, fftlength=None, window='hanning',
-                  **kwargs):
-        COH = OrderedDict()
-        for ii in range(len(self.keys())):
-            for jj in range(ii, len(self.keys())):
-                if ii == jj:
-                    continue
-                newkey = self.keys()[ii] + '-' + self.keys()[jj]
-                key1 = self.keys()[ii]
-                key2 = self.keys()[jj]
-                COH[newkey] = self[key1]['Z'].coherence(self[key2]['Z'],
-                                                        fftlength=fftlength,
-                                                        window=window,
-                                                        stacktype='ts',
-                                                        **kwargs)
-        return COH
 
 
 class Trace(TimeSeries):
@@ -438,58 +375,6 @@ class Trace(TimeSeries):
                     'D4850': [599581.886292, 4911840.127688, 115.2]}
         staname = self.channel.name.split(':')[0]
         return np.asarray(xyz_list[staname])
-
-
-class Spec(Spectrum):
-    def whiten(self, width=1):
-        """
-        whitens spectrum by getting a smoothed version of the
-        absolute value of the spectrum and dividing out by that smoothed
-        version.
-
-        Parameters
-        ----------
-        width : `int`, kwarg, optional, default=1
-            width over which to smooth (in Hz)
-
-        Returns
-        -------
-        out : `Spec`, whitened spectrum
-        """
-
-        S = self
-        env = S.smooth(width=width)
-        return S / env
-
-    def smooth(self, width=1):
-        """
-        Smooths spectrum by convolving data with ones of
-        proper length. Averages over width
-
-        Parameters
-        ----------
-        width : `int`, optional, default=1,
-            Number of seconds or Hz to use in convolution.
-
-        Returns
-        -------
-        smoothed : `Trace`
-            Smoothed time series trace.
-        """
-
-        S = np.abs(self)
-
-        # turn width into # of samples
-        width = width * (1 / S.df.value)
-
-        # get window
-        window = np.ones((2 * width))
-
-        # do convolution
-        S = np.convolve(S, window / (2 * width), 'same')
-        S = Spec(S)
-        S.__dict__ = self.copy_metadata()
-        return S
 
 
 def fetch(st, et, channel, framedir='./'):
