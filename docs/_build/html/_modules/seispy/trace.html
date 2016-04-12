@@ -1,0 +1,555 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>seispy.trace &mdash; seispy 0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="seispy 0 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for seispy.trace</h1><div class="highlight"><pre>
+<span class="kn">from</span> <span class="nn">gwpy.timeseries</span> <span class="kn">import</span> <span class="n">TimeSeries</span>
+<span class="kn">from</span> <span class="nn">gwpy.spectrum</span> <span class="kn">import</span> <span class="n">Spectrum</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">scipy</span>
+<span class="kn">import</span> <span class="nn">glob</span>
+
+
+<div class="viewcode-block" id="Trace"><a class="viewcode-back" href="../../index.html#seispy.trace.Trace">[docs]</a><span class="k">class</span> <span class="nc">Trace</span><span class="p">(</span><span class="n">TimeSeries</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;class for doing seismic data analysis, inherited from gwpy TimeSeries&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Trace.hilbert"><a class="viewcode-back" href="../../index.html#seispy.trace.Trace.hilbert">[docs]</a>    <span class="k">def</span> <span class="nf">hilbert</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Performs hilbert transform to get envelope of TS data.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        TS : `Trace`</span>
+<span class="sd">            envelope of data. modulus of output of</span>
+<span class="sd">            scipy.signal.hilbert, which is actual full analytic</span>
+<span class="sd">            extension of data (not just what woudl normally</span>
+<span class="sd">            be considered hilbert transform)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># hilbert transform</span>
+        <span class="n">arr</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">signal</span><span class="o">.</span><span class="n">hilbert</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># class assignment stuff...</span>
+        <span class="n">TS</span> <span class="o">=</span> <span class="n">Trace</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+        <span class="n">TS</span><span class="o">.</span><span class="n">__dict__</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">copy_metadata</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">TS</span><span class="o">.</span><span class="n">detrend</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="Trace.smooth"><a class="viewcode-back" href="../../index.html#seispy.trace.Trace.smooth">[docs]</a>    <span class="k">def</span> <span class="nf">smooth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Smooths data by convolving data with ones...</span>
+<span class="sd">        still not sure how exactly this works and seems to</span>
+<span class="sd">        produce some edge effects</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        width : `int`, optional, default=1,</span>
+<span class="sd">            number of seconds or Hz to use in convolution.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        smoothed : `Trace`</span>
+<span class="sd">            Smoothed time series trace.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">TS</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="c1"># turn width into # of samples</span>
+        <span class="n">width</span> <span class="o">=</span> <span class="n">width</span> <span class="o">*</span> <span class="n">TS</span><span class="o">.</span><span class="n">sample_rate</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="c1"># get window</span>
+        <span class="n">window</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">2</span> <span class="o">*</span> <span class="n">width</span><span class="p">))</span>
+
+        <span class="c1"># do convolution</span>
+        <span class="n">TS</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">convolve</span><span class="p">(</span><span class="n">TS</span><span class="p">,</span> <span class="n">window</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">width</span><span class="p">),</span> <span class="s1">&#39;same&#39;</span><span class="p">)</span>
+        <span class="n">TS</span> <span class="o">=</span> <span class="n">Trace</span><span class="p">(</span><span class="n">TS</span><span class="p">)</span>
+        <span class="n">TS</span><span class="o">.</span><span class="n">__dict__</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">copy_metadata</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">TS</span><span class="o">.</span><span class="n">detrend</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="Trace.renormalization"><a class="viewcode-back" href="../../index.html#seispy.trace.Trace.renormalization">[docs]</a>    <span class="k">def</span> <span class="nf">renormalization</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Ns</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s1">&#39;water_level&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Does renormalization to get rid of things like</span>
+<span class="sd">        EQs.</span>
+
+<span class="sd">        &#39;weighted_renorm&#39;: Calculates weights based on</span>
+<span class="sd">        earthquake-band bandpass filter,</span>
+<span class="sd">        applies those weights to raw data. (requires</span>
+<span class="sd">        number of seconds with which to calculate weights)</span>
+
+<span class="sd">        &#39;water_level&#39;: calculates envelope of data using smoothed</span>
+<span class="sd">        modulus of hilbert transform and normalizes by that</span>
+<span class="sd">        smoothed envelope</span>
+
+<span class="sd">        &#39;bit&#39;: one bit normalization. return sign of detrended</span>
+<span class="sd">        data</span>
+
+<span class="sd">        Parameters:</span>
+<span class="sd">        -----------</span>
+<span class="sd">        Ns : int, optional</span>
+<span class="sd">            Number of seconds to include in</span>
+<span class="sd">            renormalization. Optimal is half of max period</span>
+<span class="sd">            of planned bandpass. Must be set if type is</span>
+<span class="sd">            &#39;weighted_renorm&#39;.</span>
+<span class="sd">        Type : str, optional, default = &#39;water_level&#39;</span>
+<span class="sd">            Type of renormalization. Default</span>
+<span class="sd">            is water level renormalization.</span>
+<span class="sd">            Other options: &#39;bit&#39;, &#39;weighted_renorm&#39;</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">        --------</span>
+<span class="sd">            normed : `Trace` object, weighted and renormalized</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># weighted renormalization</span>
+        <span class="k">if</span> <span class="nb">type</span> <span class="o">==</span> <span class="s1">&#39;weighted_renorm&#39;</span><span class="p">:</span>
+    <span class="c1"># need width to use for weights</span>
+            <span class="k">if</span> <span class="n">Ns</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s1">&#39;if type is weighted_renorm you</span><span class="se">\</span>
+<span class="s1">                    need number of seconds to renormalize by!&#39;</span><span class="p">)</span>
+            <span class="n">TS</span> <span class="o">=</span> <span class="bp">self</span>
+            <span class="c1"># apply EQ bandpass filter</span>
+            <span class="n">EQ_TS</span> <span class="o">=</span> <span class="n">TS</span><span class="o">.</span><span class="n">bandpass</span><span class="p">(</span><span class="mf">0.03</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
+            <span class="n">Nsamps</span> <span class="o">=</span> <span class="n">Ns</span> <span class="o">*</span> <span class="n">EQ_TS</span><span class="o">.</span><span class="n">sample_rate</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">normed</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">EQ_TS</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+            <span class="c1"># get weights from bandpassed data, apply them to raw data</span>
+            <span class="k">for</span> <span class="n">datum</span> <span class="ow">in</span> <span class="n">TS</span><span class="o">.</span><span class="n">value</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">idx</span> <span class="o">&gt;=</span> <span class="n">Nsamps</span> <span class="ow">and</span> <span class="n">idx</span> <span class="o">+</span> <span class="n">Nsamps</span> <span class="o">&lt;=</span> <span class="n">EQ_TS</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+                    <span class="n">normed</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">datum</span> <span class="o">/</span> \
+                        <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">EQ_TS</span><span class="o">.</span><span class="n">value</span><span class="p">[</span><span class="n">idx</span> <span class="o">-</span> <span class="n">Nsamps</span><span class="p">:</span><span class="n">idx</span> <span class="o">+</span> <span class="n">Nsamps</span><span class="p">]))</span>
+                <span class="k">elif</span> <span class="n">idx</span> <span class="o">-</span> <span class="n">Nsamps</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">normed</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">datum</span> <span class="o">/</span> \
+                        <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">EQ_TS</span><span class="o">.</span><span class="n">value</span><span class="p">[:</span><span class="n">idx</span> <span class="o">+</span> <span class="n">Nsamps</span><span class="p">]))</span>
+                <span class="k">elif</span> <span class="n">idx</span> <span class="o">+</span> <span class="n">Nsamps</span> <span class="o">&gt;</span> <span class="n">EQ_TS</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+                    <span class="n">normed</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">datum</span> <span class="o">/</span> \
+                        <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">EQ_TS</span><span class="o">.</span><span class="n">value</span><span class="p">[</span><span class="n">idx</span> <span class="o">-</span> <span class="n">Nsamps</span><span class="p">:]))</span>
+                <span class="n">idx</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">normed</span> <span class="o">=</span> <span class="n">Trace</span><span class="p">(</span>
+                <span class="n">normed</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="n">TS</span><span class="o">.</span><span class="n">sample_rate</span><span class="p">,</span>
+                <span class="n">name</span><span class="o">=</span><span class="n">TS</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">normed</span><span class="o">.</span><span class="n">detrend</span><span class="p">()</span>
+        <span class="c1"># water level renormalization</span>
+        <span class="k">elif</span> <span class="nb">type</span> <span class="o">==</span> <span class="s1">&#39;water_level&#39;</span><span class="p">:</span>
+            <span class="c1"># take hilbert transform</span>
+            <span class="n">hil</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hilbert</span><span class="p">()</span>
+
+            <span class="c1"># get envelope</span>
+            <span class="n">env</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">hil</span><span class="p">)</span>
+
+            <span class="c1"># smooth envelope (take one sample each second)</span>
+            <span class="n">env</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">smooth</span><span class="p">()</span>
+
+            <span class="c1"># normalize by envelope</span>
+            <span class="n">TS</span> <span class="o">=</span> <span class="bp">self</span> <span class="o">/</span> <span class="n">env</span>
+            <span class="k">return</span> <span class="n">TS</span><span class="o">.</span><span class="n">detrend</span><span class="p">()</span>
+
+        <span class="k">elif</span> <span class="nb">type</span> <span class="o">==</span> <span class="s1">&#39;bit&#39;</span><span class="p">:</span>
+            <span class="n">TS</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">detrend</span><span class="p">())</span>
+            <span class="n">TS</span> <span class="o">=</span> <span class="n">Trace</span><span class="p">(</span><span class="n">TS</span><span class="p">)</span>
+            <span class="n">TS</span><span class="o">.</span><span class="n">__dict__</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">copy_metadata</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">TS</span><span class="o">.</span><span class="n">detrend</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="Trace.fft_new"><a class="viewcode-back" href="../../index.html#seispy.trace.Trace.fft_new">[docs]</a>    <span class="k">def</span> <span class="nf">fft_new</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates fft (keeps negative frequencies as well...</span>
+<span class="sd">        we need them for ambient noise cross correlation).</span>
+
+<span class="sd">        NOTE: This is renormalized to be the correct spectrum,</span>
+<span class="sd">        however that means that you cannot just use</span>
+<span class="sd">        numpy.fft.ifft(self.fft_new(window=None))</span>
+<span class="sd">        to get back the original timeseries.</span>
+
+<span class="sd">        &gt;&gt;&gt; data1 = read_frame(frame, channel)</span>
+<span class="sd">        &gt;&gt;&gt; TS_old = np.fft.ifft(data1.size * data1.fft_new(window=None))</span>
+<span class="sd">        &gt;&gt;&gt; data1 == TS_old</span>
+
+<span class="sd">        self.fft() uses the same normalization, but does not offer</span>
+<span class="sd">        whitening and windowing like this function does.</span>
+
+<span class="sd">        can do whitening if you want</span>
+
+<span class="sd">        Parameters:</span>
+<span class="sd">        -----------</span>
+<span class="sd">        whiten: `bool`, optional</span>
+<span class="sd">            Whitens spectrum on both sides.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">        --------</span>
+<span class="sd">        fft : `Spec`, fft</span>
+<span class="sd">            Whitened if wanted</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;whiten&#39;</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;whiten&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;window&#39;</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;window&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;hanning&#39;</span>
+
+        <span class="c1"># whiten</span>
+        <span class="c1"># if kwargs[&#39;whiten&#39;]:</span>
+        <span class="c1">#     Nsecs = self.value.size / self.sample_rate.value</span>
+        <span class="c1">#     TS = self.whiten(1. / 8 * Nsecs, 1. / 16 * Nsecs)</span>
+        <span class="c1"># else:</span>
+        <span class="n">TS</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="c1"># window and fft...</span>
+        <span class="k">if</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;window&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;hanning&#39;</span><span class="p">:</span>
+            <span class="n">window</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hanning</span><span class="p">(</span><span class="n">TS</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+            <span class="n">fft</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">fft</span><span class="p">(</span>
+                <span class="n">TS</span><span class="o">.</span><span class="n">value</span> <span class="o">*</span> <span class="n">window</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">TS</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+            <span class="n">freqs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">fftfreq</span><span class="p">(</span>
+                <span class="n">TS</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="n">d</span><span class="o">=</span><span class="p">(</span><span class="mf">1.</span> <span class="o">/</span> <span class="n">TS</span><span class="o">.</span><span class="n">sample_rate</span><span class="o">.</span><span class="n">value</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fft</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">fft</span><span class="p">(</span>
+                <span class="n">TS</span><span class="o">.</span><span class="n">value</span><span class="p">)</span> <span class="o">/</span> <span class="n">TS</span><span class="o">.</span><span class="n">size</span>
+            <span class="n">freqs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">fftfreq</span><span class="p">(</span>
+                <span class="n">TS</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="n">d</span><span class="o">=</span><span class="p">(</span><span class="mf">1.</span> <span class="o">/</span> <span class="n">TS</span><span class="o">.</span><span class="n">sample_rate</span><span class="o">.</span><span class="n">value</span><span class="p">))</span>
+        <span class="c1"># put things in the right order</span>
+        <span class="n">fft</span> <span class="o">=</span> <span class="n">Spec</span><span class="p">(</span>
+            <span class="n">fft</span><span class="p">,</span> <span class="n">f0</span><span class="o">=</span><span class="n">freqs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">df</span><span class="o">=</span><span class="p">(</span><span class="n">freqs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">freqs</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+            <span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">epoch</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">epoch</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;whiten&#39;</span><span class="p">]:</span>
+            <span class="n">fft</span> <span class="o">=</span> <span class="n">fft</span><span class="o">.</span><span class="n">whiten</span><span class="p">(</span><span class="n">width</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">fft</span></div>
+
+<div class="viewcode-block" id="Trace.coherence_calc"><a class="viewcode-back" href="../../index.html#seispy.trace.Trace.coherence_calc">[docs]</a>    <span class="k">def</span> <span class="nf">coherence_calc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tr</span><span class="p">,</span> <span class="n">whiten</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">bandpass</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">flow</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span>
+                       <span class="n">fhigh</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">normtype</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">normlen</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="s1">&#39;hanning&#39;</span><span class="p">,</span>
+                       <span class="n">fftlength</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">overlap</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">outtype</span><span class="o">=</span><span class="s1">&#39;ts&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates coherence between two traces. Will do spectral whitening,</span>
+<span class="sd">        normalize it.</span>
+
+<span class="sd">        Parameters:</span>
+<span class="sd">        -----------</span>
+<span class="sd">        tr : `Trace`</span>
+<span class="sd">            Trace time series to calculate coherence with.</span>
+
+<span class="sd">        Return:</span>
+<span class="sd">        -------</span>
+<span class="sd">        ifft : `Trace`</span>
+<span class="sd">            Trace time series of coherence</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">bandpass</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">normtype</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">new1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fft_new</span><span class="p">(</span><span class="n">whiten</span><span class="o">=</span><span class="n">whiten</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">)</span>
+            <span class="n">new2</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">fft_new</span><span class="p">(</span><span class="n">whiten</span><span class="o">=</span><span class="n">whiten</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">bandpass</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">normtype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">new1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">renormalization</span><span class="p">(</span>
+                <span class="n">Ns</span><span class="o">=</span><span class="n">normlen</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">normtype</span><span class="p">)</span><span class="o">.</span><span class="n">fft_new</span><span class="p">(</span><span class="n">whiten</span><span class="o">=</span><span class="n">whiten</span><span class="p">,</span>
+                                                   <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">)</span>
+            <span class="n">new2</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">renormalization</span><span class="p">(</span>
+                <span class="n">Ns</span><span class="o">=</span><span class="n">normlen</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">normtype</span><span class="p">)</span><span class="o">.</span><span class="n">fft_new</span><span class="p">(</span><span class="n">whiten</span><span class="o">=</span><span class="n">whiten</span><span class="p">,</span>
+                                                   <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">normtype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">bandpass</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">new1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bandpass</span><span class="p">(</span><span class="n">flow</span><span class="p">,</span> <span class="n">fhigh</span><span class="p">)</span><span class="o">.</span><span class="n">renormalization</span><span class="p">(</span>
+                <span class="n">Ns</span><span class="o">=</span><span class="n">normlen</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">normtype</span><span class="p">)</span><span class="o">.</span><span class="n">fft_new</span><span class="p">(</span><span class="n">whiten</span><span class="o">=</span><span class="n">whiten</span><span class="p">,</span>
+                                                   <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">)</span>
+            <span class="n">new2</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">bandpass</span><span class="p">(</span><span class="n">flow</span><span class="p">,</span> <span class="n">fhigh</span><span class="p">)</span><span class="o">.</span><span class="n">renormalization</span><span class="p">(</span>
+                <span class="n">Ns</span><span class="o">=</span><span class="n">normlen</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">normtype</span><span class="p">)</span><span class="o">.</span><span class="n">fft_new</span><span class="p">(</span><span class="n">whiten</span><span class="o">=</span><span class="n">whiten</span><span class="p">,</span>
+                                                   <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">normtype</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">bandpass</span> <span class="ow">is</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="n">new1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bandpass</span><span class="p">(</span><span class="n">flow</span><span class="p">,</span> <span class="n">fhigh</span><span class="p">)</span><span class="o">.</span><span class="n">fft_new</span><span class="p">(</span>
+                <span class="n">whiten</span><span class="o">=</span><span class="n">whiten</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">)</span>
+            <span class="n">new2</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">bandpass</span><span class="p">(</span><span class="n">flow</span><span class="p">,</span> <span class="n">fhigh</span><span class="p">)</span><span class="o">.</span><span class="n">fft_new</span><span class="p">(</span>
+                <span class="n">whiten</span><span class="o">=</span><span class="n">whiten</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">)</span>
+
+        <span class="n">coh</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">conj</span><span class="p">(</span><span class="n">new1</span><span class="p">)</span> <span class="o">*</span> <span class="n">new2</span> <span class="o">/</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">new1</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">new2</span><span class="p">))</span>
+        <span class="c1"># do ifft, but need to rearrange frequencies</span>
+        <span class="n">coh_ts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">ifft</span><span class="p">(</span><span class="n">coh</span><span class="p">)</span>
+        <span class="n">coh_ts</span> <span class="o">=</span> <span class="n">TimeSeries</span><span class="p">(</span><span class="n">coh_ts</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;coherence TS between </span><span class="si">%s</span><span class="s1"> and </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">channel</span><span class="p">,</span> <span class="n">tr</span><span class="o">.</span><span class="n">channel</span><span class="p">),</span> <span class="n">sample_rate</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sample_rate</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">outtype</span> <span class="o">==</span> <span class="s1">&#39;ts&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">coh_ts</span>
+        <span class="k">if</span> <span class="n">outtype</span> <span class="o">==</span> <span class="s1">&#39;spec&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">fftshift</span><span class="p">(</span><span class="n">coh</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">outtype</span> <span class="o">==</span> <span class="s1">&#39;components&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">new1</span><span class="p">,</span> <span class="n">new2</span></div>
+
+<div class="viewcode-block" id="Trace.coherence"><a class="viewcode-back" href="../../index.html#seispy.trace.Trace.coherence">[docs]</a>    <span class="k">def</span> <span class="nf">coherence</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tr</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="s1">&#39;hanning&#39;</span><span class="p">,</span> <span class="n">fftlength</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">stacktype</span><span class="o">=</span><span class="s1">&#39;freq&#39;</span><span class="p">,</span>
+                  <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate coherence between self and `tr` trace object.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        tr : `Trace`</span>
+<span class="sd">            object with with to calculate coherence</span>
+<span class="sd">        fftlength : `int`</span>
+<span class="sd">            length of ffts to take when calculating coherence</span>
+<span class="sd">        stacktype : `str`</span>
+<span class="sd">            method used to stack coherences. options are &#39;ts&#39; and &#39;freq&#39;</span>
+<span class="sd">            &#39;ts&#39; averages resultant ifft&#39;ed timeseries together. &#39;freq&#39;</span>
+<span class="sd">            averages csds and psds individually and takes ratio of them at</span>
+<span class="sd">            the end and then takes ifft.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        coh_ts : `Trace`</span>
+<span class="sd">            coherence timeseries with acausal followed by causal times</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">fftlength</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">fftlength</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span>
+        <span class="n">Nsamps</span> <span class="o">=</span> <span class="n">fftlength</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_rate</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="c1"># stack</span>
+        <span class="k">if</span> <span class="n">window</span> <span class="o">==</span> <span class="s1">&#39;hanning&#39;</span> <span class="ow">and</span> <span class="n">fftlength</span> <span class="o">&lt;=</span> <span class="mi">2</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+            <span class="n">nsteps</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="o">/</span> <span class="n">Nsamps</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">nsteps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="o">/</span> <span class="n">Nsamps</span>
+        <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">nsteps</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">idx1</span> <span class="o">=</span> <span class="n">step</span> <span class="o">*</span> <span class="n">Nsamps</span> <span class="o">/</span> <span class="mf">2.</span>
+            <span class="n">idx2</span> <span class="o">=</span> <span class="n">idx1</span> <span class="o">+</span> <span class="n">Nsamps</span>
+            <span class="k">if</span> <span class="n">stacktype</span> <span class="ow">is</span> <span class="s1">&#39;freq&#39;</span><span class="p">:</span>
+                <span class="n">new1</span><span class="p">,</span> <span class="n">new2</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="n">idx1</span><span class="p">:</span><span class="n">idx2</span><span class="p">]</span><span class="o">.</span><span class="n">coherence_calc</span><span class="p">(</span>
+                    <span class="n">tr</span><span class="p">[</span><span class="n">idx1</span><span class="p">:</span><span class="n">idx2</span><span class="p">],</span> <span class="n">outtype</span><span class="o">=</span><span class="s1">&#39;components&#39;</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span>
+                    <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">step</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">csd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">conj</span><span class="p">(</span><span class="n">new1</span><span class="p">)</span> <span class="o">*</span> <span class="n">new2</span>
+                    <span class="n">asd1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">new1</span><span class="p">)</span>
+                    <span class="n">asd2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">new2</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">csd</span> <span class="o">=</span> <span class="p">(</span><span class="n">csd</span> <span class="o">*</span> <span class="n">step</span> <span class="o">+</span> <span class="n">new1</span> <span class="o">*</span> <span class="n">new2</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">step</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+                    <span class="n">asd1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+                        <span class="p">(</span><span class="n">asd1</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">step</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">new1</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">step</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+                    <span class="n">asd2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+                        <span class="p">(</span><span class="n">asd2</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">step</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">new2</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">step</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">stacktype</span> <span class="ow">is</span> <span class="s1">&#39;ts&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">step</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">coh_ts</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="n">idx1</span><span class="p">:</span><span class="n">idx2</span><span class="p">]</span><span class="o">.</span><span class="n">coherence_calc</span><span class="p">(</span>
+                        <span class="n">tr</span><span class="p">[</span><span class="n">idx1</span><span class="p">:</span><span class="n">idx2</span><span class="p">],</span> <span class="n">outtype</span><span class="o">=</span><span class="s1">&#39;ts&#39;</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span>
+                        <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">coh_ts_temp</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="n">idx1</span><span class="p">:</span><span class="n">idx2</span><span class="p">]</span><span class="o">.</span><span class="n">coherence_calc</span><span class="p">(</span>
+                        <span class="n">tr</span><span class="p">[</span><span class="n">idx1</span><span class="p">:</span><span class="n">idx2</span><span class="p">],</span> <span class="n">outtype</span><span class="o">=</span><span class="s1">&#39;ts&#39;</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="n">window</span><span class="p">,</span>
+                        <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                    <span class="n">coh_ts</span> <span class="o">=</span> <span class="p">(</span><span class="n">coh_ts</span> <span class="o">*</span> <span class="n">step</span> <span class="o">+</span> <span class="n">coh_ts_temp</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">step</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">stacktype</span> <span class="ow">is</span> <span class="s1">&#39;freq&#39;</span><span class="p">:</span>
+            <span class="n">coh</span> <span class="o">=</span> <span class="n">csd</span> <span class="o">/</span> <span class="p">(</span><span class="n">asd1</span> <span class="o">*</span> <span class="n">asd2</span><span class="p">)</span>
+            <span class="n">coh_ts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">ifft</span><span class="p">(</span><span class="n">coh</span><span class="p">)</span>
+        <span class="n">deltaXvec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">location</span> <span class="o">-</span> <span class="n">tr</span><span class="o">.</span><span class="n">location</span>
+        <span class="n">N</span> <span class="o">=</span> <span class="n">coh_ts</span><span class="o">.</span><span class="n">size</span>
+        <span class="n">coh_ts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">coh_ts</span><span class="p">[</span><span class="n">N</span> <span class="o">/</span> <span class="mi">2</span><span class="p">:],</span> <span class="n">coh_ts</span><span class="p">[:</span><span class="n">N</span> <span class="o">/</span> <span class="mi">2</span><span class="p">]))</span>
+        <span class="n">coh_ts</span> <span class="o">=</span> <span class="n">Trace</span><span class="p">(</span><span class="n">coh_ts</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;coherence TS between </span><span class="si">%s</span><span class="s1"> and </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">channel</span><span class="p">,</span> <span class="n">tr</span><span class="o">.</span><span class="n">channel</span><span class="p">),</span> <span class="n">sample_rate</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sample_rate</span><span class="p">))</span>
+        <span class="n">coh_ts</span><span class="o">.</span><span class="n">deltax</span> <span class="o">=</span> <span class="n">deltaXvec</span>
+        <span class="n">coh_ts</span><span class="o">.</span><span class="n">x0</span> <span class="o">=</span> <span class="o">-</span><span class="n">coh_ts</span><span class="o">.</span><span class="n">times</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mf">2.</span>
+        <span class="k">return</span> <span class="n">coh_ts</span><span class="o">.</span><span class="n">real</span></div>
+
+<div class="viewcode-block" id="Trace.get_location"><a class="viewcode-back" href="../../index.html#seispy.trace.Trace.get_location">[docs]</a>    <span class="k">def</span> <span class="nf">get_location</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Gets location of a specific station based on channel name associated</span>
+<span class="sd">        with trace.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        none</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        location : `numpy array`</span>
+<span class="sd">            [x,y,z] location of station based on channel name</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">xyz_list</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;DEAD&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">599316.496208</span><span class="p">,</span> <span class="mf">4915135.795515</span><span class="p">,</span> <span class="mi">1498</span><span class="p">],</span>
+                    <span class="s1">&#39;LHS&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">597654.698101</span><span class="p">,</span> <span class="mf">4911177.756239</span><span class="p">,</span> <span class="mi">1684</span><span class="p">],</span>
+                    <span class="s1">&#39;ORO&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">599454.495625</span><span class="p">,</span> <span class="mf">4910782.727115</span><span class="p">,</span> <span class="mi">1543</span><span class="p">],</span>
+                    <span class="s1">&#39;ROSS&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">599029.335575</span><span class="p">,</span> <span class="mf">4910954.029719</span><span class="p">,</span> <span class="mi">1628</span><span class="p">],</span>
+                    <span class="s1">&#39;RRDG&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">598383.512647</span><span class="p">,</span> <span class="mf">4912544.118885</span><span class="p">,</span> <span class="mi">1677</span><span class="p">],</span>
+                    <span class="s1">&#39;SHL&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">602888.695761</span><span class="p">,</span> <span class="mf">4907880.584008</span><span class="p">,</span> <span class="mi">1772</span><span class="p">],</span>
+                    <span class="s1">&#39;TPK&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">595816.121345</span><span class="p">,</span> <span class="mf">4910428.385396</span><span class="p">,</span> <span class="mi">1740</span><span class="p">],</span>
+                    <span class="s1">&#39;WTP&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">600233.873095</span><span class="p">,</span> <span class="mf">4911950.092981</span><span class="p">,</span> <span class="mi">1555</span><span class="p">],</span>
+                    <span class="s1">&#39;YATES&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">599503.542430</span><span class="p">,</span> <span class="mf">4911750.052702</span><span class="p">,</span> <span class="mi">1625</span><span class="p">],</span>
+                    <span class="s1">&#39;300&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">599082.941268</span><span class="p">,</span> <span class="mf">4911099.273511</span><span class="p">,</span> <span class="mf">1505.1</span><span class="p">],</span>
+                    <span class="s1">&#39;800&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">598921.845912</span><span class="p">,</span> <span class="mf">4911207.932696</span><span class="p">,</span> <span class="mi">1350</span><span class="p">],</span>
+                    <span class="s1">&#39;1700&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">598954.462337</span><span class="p">,</span> <span class="mf">4911686.159936</span><span class="p">,</span> <span class="mf">1073.8</span><span class="p">],</span>
+                    <span class="s1">&#39;A2000&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">598644.641050</span><span class="p">,</span> <span class="mf">4911614.812799</span><span class="p">,</span> <span class="mf">983.3</span><span class="p">],</span>
+                    <span class="s1">&#39;B2000&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">598791.293544</span><span class="p">,</span> <span class="mf">4911405.938094</span><span class="p">,</span> <span class="mf">983.3</span><span class="p">],</span>
+                    <span class="s1">&#39;C2000&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">598532.222831</span><span class="p">,</span> <span class="mf">4911668.666166</span><span class="p">,</span> <span class="mf">983.1</span><span class="p">],</span>
+                    <span class="s1">&#39;D2000&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">598114.948236</span><span class="p">,</span> <span class="mf">4911851.254988</span><span class="p">,</span> <span class="mi">983</span><span class="p">],</span>
+                    <span class="s1">&#39;E2000&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">597894.603780</span><span class="p">,</span> <span class="mf">4912192.359339</span><span class="p">,</span> <span class="mf">983.1</span><span class="p">],</span>
+                    <span class="s1">&#39;A4100&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">599356.477888</span><span class="p">,</span> <span class="mf">4910936.776895</span><span class="p">,</span> <span class="mf">342.5</span><span class="p">],</span>
+                    <span class="s1">&#39;C4100&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">599568.994798</span><span class="p">,</span> <span class="mf">4911639.949104</span><span class="p">,</span> <span class="mf">342.3</span><span class="p">],</span>
+                    <span class="s1">&#39;D4100&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">599549.979057</span><span class="p">,</span> <span class="mf">4910795.291477</span><span class="p">,</span> <span class="mf">342.4</span><span class="p">],</span>
+                    <span class="s1">&#39;A4850&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">598646.478984</span><span class="p">,</span> <span class="mf">4910437.175145</span><span class="p">,</span> <span class="mf">115.2</span><span class="p">],</span>
+                    <span class="s1">&#39;B4850&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">598987.461619</span><span class="p">,</span> <span class="mf">4911086.715912</span><span class="p">,</span> <span class="mf">114.9</span><span class="p">],</span>
+                    <span class="s1">&#39;C4850&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">599409.907522</span><span class="p">,</span> <span class="mf">4911093.130999</span><span class="p">,</span> <span class="mf">114.6</span><span class="p">],</span>
+                    <span class="s1">&#39;D4850&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">599581.886292</span><span class="p">,</span> <span class="mf">4911840.127688</span><span class="p">,</span> <span class="mf">115.2</span><span class="p">]}</span>
+        <span class="n">staname</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">channel</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">xyz_list</span><span class="p">[</span><span class="n">staname</span><span class="p">])</span></div></div>
+
+
+<span class="k">def</span> <span class="nf">fetch</span><span class="p">(</span><span class="n">st</span><span class="p">,</span> <span class="n">et</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">framedir</span><span class="o">=</span><span class="s1">&#39;./&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    fetch data based on location of frames</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    st : `int`</span>
+<span class="sd">        start time (GPS time)</span>
+<span class="sd">    et : `int`</span>
+<span class="sd">        end time (GPS time)</span>
+<span class="sd">    channel : `channel`</span>
+<span class="sd">        channel to load data for</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    TS : `Trace`</span>
+<span class="sd">        Trace object containing data between start and end times</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># uncomment when not testing</span>
+    <span class="c1"># for looping over directories where frames</span>
+    <span class="c1"># are located</span>
+    <span class="c1"># st_dir = int(str(st)[:5])</span>
+    <span class="c1"># et_dir = int(str(et)[:5])</span>
+    <span class="c1"># dirs = np.arange(st_dir, et_dir + 1)</span>
+    <span class="c1"># for dir in dirs:</span>
+    <span class="k">print</span> <span class="s1">&#39;FRAME READING TESTING MODE!!!&#39;</span>
+    <span class="n">files</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">framedir</span> <span class="o">+</span> <span class="s1">&#39;*.gwf&#39;</span><span class="p">))</span>
+    <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([])</span>
+
+    <span class="k">for</span> <span class="nb">file</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+        <span class="n">fst</span> <span class="o">=</span> <span class="nb">file</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">dur</span> <span class="o">=</span> <span class="nb">file</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">][:</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span>
+        <span class="c1"># start is before frame start, end is before frame end</span>
+        <span class="c1"># we want to load fst -&gt; et</span>
+        <span class="k">if</span> <span class="n">st</span> <span class="o">&lt;=</span> <span class="n">fst</span> <span class="ow">and</span> <span class="n">et</span> <span class="o">&lt;=</span> <span class="n">fst</span> <span class="o">+</span> <span class="n">dur</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">read_frame</span><span class="p">(</span><span class="nb">file</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">st</span><span class="o">=</span><span class="n">fst</span><span class="p">,</span> <span class="n">et</span><span class="o">=</span><span class="n">et</span><span class="p">)</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">vals</span><span class="p">,</span> <span class="n">val</span><span class="o">.</span><span class="n">value</span><span class="p">))</span>
+        <span class="c1"># start is after frame start, end is before frame end</span>
+        <span class="c1"># we want to load only st -&gt; et</span>
+        <span class="k">elif</span> <span class="n">st</span> <span class="o">&gt;=</span> <span class="n">fst</span> <span class="ow">and</span> <span class="n">et</span> <span class="o">&lt;=</span> <span class="n">fst</span> <span class="o">+</span> <span class="n">dur</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">read_frame</span><span class="p">(</span><span class="nb">file</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">st</span><span class="o">=</span><span class="n">st</span><span class="p">,</span> <span class="n">et</span><span class="o">=</span><span class="n">et</span><span class="p">)</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">vals</span><span class="p">,</span> <span class="n">val</span><span class="o">.</span><span class="n">value</span><span class="p">))</span>
+        <span class="c1"># start is after frame start end is after or equal to frame end</span>
+        <span class="c1"># we want to load st -&gt; fst + dur</span>
+        <span class="k">elif</span> <span class="n">st</span> <span class="o">&gt;=</span> <span class="n">fst</span> <span class="ow">and</span> <span class="n">et</span> <span class="o">&gt;=</span> <span class="n">fst</span> <span class="o">+</span> <span class="n">dur</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">read_frame</span><span class="p">(</span><span class="nb">file</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">st</span><span class="o">=</span><span class="n">st</span><span class="p">,</span> <span class="n">et</span><span class="o">=</span><span class="n">fst</span> <span class="o">+</span> <span class="n">dur</span><span class="p">)</span>
+        <span class="c1"># start is before frame start, end is after frame end</span>
+        <span class="c1"># load fst -&gt; fst + dur (whole frame)</span>
+        <span class="k">elif</span> <span class="n">st</span> <span class="o">&lt;=</span> <span class="n">fst</span> <span class="ow">and</span> <span class="n">et</span> <span class="o">&gt;=</span> <span class="n">fst</span> <span class="o">+</span> <span class="n">dur</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">read_frame</span><span class="p">(</span><span class="nb">file</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">st</span><span class="o">=</span><span class="n">fst</span><span class="p">,</span> <span class="n">et</span><span class="o">=</span><span class="n">fst</span> <span class="o">+</span> <span class="n">dur</span><span class="p">)</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="n">vals</span><span class="p">,</span> <span class="n">val</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+        <span class="n">TS</span> <span class="o">=</span> <span class="n">Trace</span><span class="p">(</span><span class="n">vals</span><span class="p">,</span> <span class="n">x0</span><span class="o">=</span><span class="n">st</span><span class="p">,</span> <span class="n">dx</span><span class="o">=</span><span class="n">val</span><span class="o">.</span><span class="n">dx</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">val</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">channel</span><span class="o">=</span><span class="n">val</span><span class="o">.</span><span class="n">channel</span><span class="p">)</span>
+        <span class="n">loc</span> <span class="o">=</span> <span class="n">TS</span><span class="o">.</span><span class="n">get_location</span><span class="p">()</span>
+        <span class="n">TS</span><span class="o">.</span><span class="n">location</span> <span class="o">=</span> <span class="n">loc</span>
+        <span class="k">return</span> <span class="n">TS</span>
+
+
+<span class="k">def</span> <span class="nf">read_frame</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">st</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">et</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">cfac</span><span class="o">=</span><span class="mf">1.589459e-9</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    reads ligo frames</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    frame : `str`</span>
+<span class="sd">        filepath to a frame</span>
+<span class="sd">    channel : `str`</span>
+<span class="sd">        channel in the frame to load</span>
+<span class="sd">    st : `int`, date string, optional</span>
+<span class="sd">        optional start time. defaults to beginning</span>
+<span class="sd">        of frame</span>
+<span class="sd">    et : `int ,date string, optional</span>
+<span class="sd">        optional end time. defaults to end</span>
+<span class="sd">        of frame</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    TS : `Trace`</span>
+<span class="sd">        time series trace</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">st</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">et</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">d1</span> <span class="o">=</span> <span class="n">cfac</span> <span class="o">*</span> <span class="n">Trace</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">st</span><span class="p">,</span> <span class="n">et</span><span class="p">)</span><span class="o">.</span><span class="n">detrend</span><span class="p">()</span>
+        <span class="n">d2</span> <span class="o">=</span> <span class="n">TimeSeries</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="n">channel</span><span class="p">,</span> <span class="n">st</span><span class="p">,</span> <span class="n">et</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">d1</span> <span class="o">=</span> <span class="n">cfac</span> <span class="o">*</span> <span class="n">Trace</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span><span class="o">.</span><span class="n">detrend</span><span class="p">()</span>
+        <span class="n">d2</span> <span class="o">=</span> <span class="n">TimeSeries</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="n">channel</span><span class="p">)</span>
+    <span class="n">d1</span><span class="o">.</span><span class="n">__dict__</span> <span class="o">=</span> <span class="n">d2</span><span class="o">.</span><span class="n">copy_metadata</span><span class="p">()</span>
+    <span class="n">d1</span><span class="o">.</span><span class="n">location</span> <span class="o">=</span> <span class="n">d1</span><span class="o">.</span><span class="n">get_location</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">d1</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016, Pat Meyers.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.5</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
