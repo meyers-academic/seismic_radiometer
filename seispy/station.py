@@ -25,3 +25,4 @@ class Station(OrderedDict):
         self['E'] = read_frame('M-SEISMIC-1125384593-4096.gwf',
                                station + ':HHE', st=st, et=et)
         self.location = self['Z'].location
+
