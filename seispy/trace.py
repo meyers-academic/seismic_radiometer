@@ -3,6 +3,7 @@ from gwpy.spectrum import Spectrum
 import numpy as np
 import scipy
 import glob
+from gwpy.time import *
 
 
 class Trace(TimeSeries):
@@ -466,3 +467,122 @@ def read_frame(frame, channel, st=None, et=None, cfac=1.589459e-9):
     d1.__dict__ = d2.copy_metadata()
     d1.location = d1.get_location()
     return d1
+
+
+def read_mseed(f, starttime=None, endtime=None):
+    """
+    reads miniseed file between start time and end time.
+
+    NOTE: No error is given if times are outside of range
+    of data in file. Data in file is clipped to start and
+    end times and if data in file is subset of specified
+    interval then all data is returned. This is because
+    this function is used primarily as a tool for `fetch_mseed()`
+    and this makes life much easier.
+
+    Parameters
+    ----------
+    f : `str`
+        miniseed file to load
+    starttime : `int`, optional
+        GPS time. Start time. defaults
+        to start time of file to load
+    endtime : `int`, optional 
+        GPS time. End time. Defaults to
+        end time of file to load.
+    """
+    from obspy import (read, UTCDateTime)
+    from gwpy.time import *
+
+    # if no start time or end time, read the whole
+    # damn thing
+    data = read(f)
+    data_st = float(tconvert(UTCDateTime(data[0].stats.starttime))) - 315964783
+    data_et = float(tconvert(UTCDateTime(data[0].stats.endtime))) - 315964783
+    dx = 1. / data[0].stats.sampling_rate
+    if starttime is None and endtime is None:
+        print 'No start times specified, reading whole file...'
+    elif isinstance(starttime, int) and isinstance(endtime, int):
+        dur = endtime - starttime
+        # check start/end times match file we're reading...useful
+        # for fetching
+        if starttime <= data_st:
+            st = UTCDateTime(tconvert(data_st))
+        elif starttime > data_st:
+            st = UTCDateTime(tconvert(starttime))
+        if endtime - dx >= data_et:
+            et = UTCDateTime(tconvert(data_et - dx))
+        elif endtime - dx < data_et:
+            et = UTCDateTime(tconvert(endtime - dx))
+        data = read(f, starttime=st, endtime=et)
+
+    tr = data[0]
+    trace = Trace(tr.data, x0=starttime, dx=1. / tr.stats.sampling_rate, channel='%s:%s' % (
+        data[0].stats.station, data[0].stats.channel))
+    return trace
+
+
+def find_mseed_files(channel, st, et, basedir='./'):
+    if isinstance(st, int):
+        st = from_gps(st)
+    if isinstance(et, int):
+        et = from_gps(et)
+    day1 = st.timetuple().tm_yday
+    dayend = et.timetuple().tm_yday
+    files = []
+    station = channel.split(':')[0]
+    chan = channel.split(':')[1]
+    # check if we change years...
+    if st.year < et.year:
+        if et.year - st.year == 1:
+            for ii in range(day1, 366):
+                files.append('%d/%s/%03d/%s.X6..%s.%d.%03d' %
+                             (st.year, basedir, ii, station, chan, st.year, ii))
+            for jj in range(1, dayend + 1):
+                files.append('%d/%s/%03d/%s.X6..%s.%d.%03d' %
+                             (et.year, basedir, jj, station, chan, et.year, jj))
+        else:
+            raise ValueError('for now cant go across multiple years...')
+    else:
+        for ii in range(day1, dayend + 1):
+            files.append('%d/%s/%03d/%s.X6..%s.%d.%03d' %
+                         (st.year, basedir, ii, station, chan, st.year, ii))
+    return files
+
+
+def fetch_mseed(channel, st, et, basedir='./', cfac=1.589459e-9):
+    """
+    fetch miniseed data from database with toplevel directory
+    of `basedir`.
+
+    Paramters
+    ---------
+    channel : `str`
+        Station/channel pair. e.g. 'D4850:HHZ' to match frame
+        fetching method
+    st : `int`
+        LIGO gps time for start
+    et : `int`
+        LIGO gps time for end (will not include sample starting on end time)
+    basedir `str`, optional, default='./'
+        Base directory for database of antelope data
+    cfac : `float`
+        Calibration constant factor to multiply by data from minised files.
+
+    Returns
+    -------
+    data : :Trace:
+        Detrended, calibrated trace object
+    """
+    files = find_mseed_files(channel, st, et, basedir=basedir)
+    data = np.array([])
+    st = st
+    # test open to get sample rate of channel
+    dat_test = read_mseed(files[0], st, et)
+    if from_gps(et).timetuple().tm_yday - from_gps(et - dat_test.dx.value).timetuple().tm_yday > 0:
+        files = files[:-1]
+    for f in files:
+        dat = read_mseed(f, st, et)
+        data = np.hstack((data, dat.value))
+    data = cfac * Trace(data, x0=st, dx=dat.dx, channel=channel)
+    return data.detrend()

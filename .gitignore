@@ -1,0 +1,6 @@
+data/
+seispy.egg-info/
+build/
+.egg
+*.pyc
+dist/
