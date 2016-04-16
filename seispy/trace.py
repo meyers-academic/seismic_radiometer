@@ -1,5 +1,5 @@
 from gwpy.timeseries import TimeSeries
-from gwpy.spectrum import Spectrum
+from seispy.spec import Spec
 import numpy as np
 import scipy
 import glob
@@ -176,14 +176,7 @@ class Trace(TimeSeries):
         fft : `Spec`, fft
             Whitened if wanted
         """
-        try:
-            kwargs['whiten']
-        except KeyError:
-            kwargs['whiten'] = False
-        try:
-            kwargs['window']
-        except KeyError:
-            kwargs['window'] = 'hanning'
+        kwargs = self._check_fft_kwargs(kwargs)
 
         # whiten
         # if kwargs['whiten']:
@@ -211,6 +204,17 @@ class Trace(TimeSeries):
             fft = fft.whiten(width=1)
 
         return fft
+
+    def _check_fft_kwargs(self, kwargs):
+        try:
+            kwargs['whiten']
+        except KeyError:
+            kwargs['whiten'] = False
+        try:
+            kwargs['window']
+        except KeyError:
+            kwargs['window'] = 'hanning'
+        return kwargs
 
     def coherence_calc(self, tr, whiten=False, bandpass=None, flow=1e-4,
                        fhigh=50, normtype=None, normlen=None, window='hanning',
@@ -399,19 +403,22 @@ def fetch(st, et, channel, framedir='./'):
     # uncomment when not testing
     # for looping over directories where frames
     # are located
-    # st_dir = int(str(st)[:5])
-    # et_dir = int(str(et)[:5])
-    # dirs = np.arange(st_dir, et_dir + 1)
-    # for dir in dirs:
-    print 'FRAME READING TESTING MODE!!!'
-    files = sorted(glob.glob(framedir + '*.gwf'))
+    st_dir = int(str(st)[:5])
+    et_dir = int(str(et)[:5])
+    dirs = np.arange(st_dir, et_dir + 1)
+    files = []
+    for directory in dirs:
+        # print 'FRAME READING TESTING MODE!!!'
+        loaddir = '%s/M-%d/' % (framedir, directory)
+        new_files = sorted(glob.glob(loaddir + '/*.gwf'))
+        files.extend(new_files)
     vals = np.asarray([])
 
     for file in files:
-        fst = file.split('-')[2]
-        dur = file.split('-')[-1][:-4]
         # start is before frame start, end is before frame end
         # we want to load fst -> et
+        fst = int(file.split('-')[-2])
+        dur = int(file.split('-')[-1][:-4])
         if st <= fst and et <= fst + dur:
             val = read_frame(file, channel, st=fst, et=et)
             vals = np.hstack((vals, val.value))
