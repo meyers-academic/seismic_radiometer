@@ -18,7 +18,8 @@ def parse_command_line():
         "--channel2", help="channel 2", default=None,
         type=str, dest='channel2')
     parser.add_option(
-        "-s", "--day1", dest='st', help="start time string that can be read by gwpy.time.tconvert",
+        "-s", "--day1", dest='st',
+        help="start time string that can be read by gwpy.time.tconvert",
         type=str, default=None)
     parser.add_option(
         "-n", "--num-days", dest='ndays', help="number of days", type=int,
@@ -52,18 +53,19 @@ datajob = pipeline.CondorDAGJob(
 dag = pipeline.CondorDAG(
     '/usr1/%s/%s-%s-%d.log' % (os.environ['USER'], params.channel1,
                                params.channel2, st))
-datajob.set_log_file('/usr1/%s/%s-%s-%d.log' % (os.environ['USER'], params.channel1,
+datajob.set_log_file('/usr1/%s/%s-%s-%d.log' % (os.environ['USER'],
+                                                params.channel1,
                                                 params.channel2, st))
 
 day_st = st
 for day in range(params.ndays):
     job = pipeline.CondorDAGJob('vanilla', 'seispy_coherence')
     job.set_sub_file('%s-%s-%d-%d-days' % (params.channel1,
-                                              params.channel2, st, params.ndays))
+                                           params.channel2, st, params.ndays))
     job.set_stderr_file('%s/%d.err' % ('err', day + 1))
     job.set_stdout_file('%s/%d.out' % ('out', day + 1))
     job.set_log_file('%s-%s-%d.log' % (params.channel1,
-                                          params.channel2, st))
+                                       params.channel2, st))
     node = pipeline.CondorDAGNode(job)
     node.add_macro('starttime', day_st)
     node.add_macro('endtime', day_st + 86400)
