@@ -43,25 +43,27 @@ st = tconvert(params.st)
 loaddays = 0
 for day in range(params.ndays):
     et = st + 86400
+    loadfile ='%s/%s/%s-%s-COHERENCE-%d-%d.hdf' %\
+                                       (params.outdir, 'COH-%s' % str(st)[0:5],
+                                       params.channel1, params.channel2, st, 
+                                       et - st)
     try:
         if day == 0:
-            data = TimeSeries.read('%s/%s/%s-%s-COHERENCE-%d-%d.hdf' %
-                                   (params.outdir, 'COH-%s' % str(st)[0:5],
-                                    params.channel1, params.channel2, st,
-                                    et - st), format='hdf5').detrend()
+            data = TimeSeries.read(loadfile, format='hdf5').detrend()
         else:
-            temp = TimeSeries.read('%s/%s/%s-%s-COHERENCE-%d-%d.hdf' %
-                                   (params.outdir, 'COH-%s' % str(st)[0:5],
-                                    params.channel1, params.channel2, st,
-                                    et - st), format='hdf5').detrend()
+            temp = TimeSeries.read(loadfile, format='hdf5').detrend()
+            print temp
             if np.all(np.isnan(temp.value)):
                 st += 86400
                 continue
             else:
-                data.detrend() += temp
+                data += temp
+                data = data.detrend()
                 loaddays += 1
+                print data
         st += 86400
     except IOError:
+        print 'couldnt load %s' % loadfile
         st += 86400
         continue
 
