@@ -58,7 +58,7 @@ for day in range(params.ndays):
                 st += 86400
                 continue
             else:
-                data += temp
+                data.detrend() += temp
                 loaddays += 1
         st += 86400
     except IOError:
