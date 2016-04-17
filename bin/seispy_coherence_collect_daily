@@ -48,10 +48,12 @@ for day in range(params.ndays):
                                params.channel1, params.channel2, params.st,
                                params.et - params.st), format='hdf5')
         else:
-            data += Trace.read('%s/%s/%s-%s-COHERENCE-%d-%d.hdf' %
+            temp = Trace.read('%s/%s/%s-%s-COHERENCE-%d-%d.hdf' %
                                (params.outdir, 'COH-%s' % str(st)[0:5],
                                 params.channel1, params.channel2, st,
                                 et - st), format='hdf5')
+            print temp
+            data += temp
         loaddays += 1
         st += 86400
     except IOError:
