@@ -27,6 +27,9 @@ def parse_command_line():
     parser.add_option(
         "-o", "--output-directory", dest="outdir", type=str,
         help="output top-level directory", default='./')
+    parser.add_option(
+        "--normalization-type", default=None, dest="norm", type=str,
+        help="normalization type!")
     params, args = parser.parse_args()
     return params
 
@@ -45,7 +48,7 @@ data1 = fetch(params.st, params.et, '%s:HHZ' %
               params.channel1, framedir=params.directory)
 data2 = fetch(params.st, params.et, '%s:HHZ' %
               params.channel2, framedir=params.directory)
-coh = data1.coherence(data2, fftlength=128, normtype='bit')
+coh = data1.coherence(data2, fftlength=128, normtype=params.norm)
 coh.write('%s/%s/%s-%s-COHERENCE-%d-%d.hdf' %
           (params.outdir, 'COH-%s' % str(params.st)[0:5], params.channel1,
            params.channel2, params.st, params.et - params.st), format='hdf5')
