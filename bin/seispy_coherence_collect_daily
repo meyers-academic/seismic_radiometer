@@ -67,8 +67,6 @@ for day in range(params.ndays):
 
 sttot = tconvert(params.st)
 data = data.detrend() / loaddays
-print data
-print loaddays
 data.write('%s/%s-%s-COHERENCE-%d-%d.hdf' %
            (params.outdir,
             params.channel1, params.channel2, sttot,
