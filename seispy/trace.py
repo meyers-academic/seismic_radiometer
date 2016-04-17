@@ -406,7 +406,6 @@ def fetch(st, et, channel, framedir='./'):
     st_dir = int(str(st)[:5])
     et_dir = int(str(et)[:5])
     dirs = np.arange(st_dir, et_dir + 1)
-    print dirs
     files = []
     for directory in dirs:
         # print 'FRAME READING TESTING MODE!!!'
@@ -414,31 +413,22 @@ def fetch(st, et, channel, framedir='./'):
         new_files = sorted(glob.glob(loaddir + '/*.gwf'))
         files.extend(new_files)
     vals = np.asarray([])
-    print st
-    print et
 
 #    for file in files:
     for ii in range(len(files)):
-        print ii
         file = files[ii]
         # start is before frame start, end is before frame end
         # we want to load fst -> et
-        print file
         fst = int(file.split('-')[-2])
         dur = int(file.split('-')[-1][:-4])
-        print fst
-        print dur
-        print fst + dur
         if st <= fst and et <= fst + dur:
             val = read_frame(file, channel, st=fst, et=et)
             vals = np.hstack((vals, val.value))
-            print 1
         # start is after frame start, end is before frame end
         # we want to load only st -> et
         elif st >= fst and et <= fst + dur:
             val = read_frame(file, channel, st=st, et=et)
             vals = np.hstack((vals, val.value))
-            print 2
         # start is after frame start end is after or equal to frame end
         # we want to load st -> fst + dur
         elif st >= fst and st < (fst + dur) and et >= fst + dur:
@@ -449,10 +439,8 @@ def fetch(st, et, channel, framedir='./'):
         elif st <= fst and et >= fst + dur:
             val = read_frame(file, channel)
             vals = np.hstack((vals, val.value))
-            print 4
         else:
             continue
-            print 'CONT'
         TS = Trace(vals, x0=st, dx=val.dx, name=val.name, channel=val.channel)
         loc = TS.get_location()
         TS.location = loc
