@@ -5,12 +5,12 @@
 """
 
 __author__ = 'Duncan Macleod <duncan.macleod@ligo.org>'
-__version__ = '42274d6b2d29d35a971922cdb03208258e1c09a8'
-__date__ = '2016-04-14 00:12:48 +0000'
+__version__ = 'a35125777a073df3988f4f52346637d246bffd31'
+__date__ = '2016-04-16 22:32:29 +0000'
 
-git_id = '42274d6b2d29d35a971922cdb03208258e1c09a8'
+git_id = 'a35125777a073df3988f4f52346637d246bffd31'
 git_branch = 'master'
 git_tag = None
-git_author = 'Patrick Meyers <pat@Patricks-Mac-mini.local>'
-git_committer = 'Patrick Meyers <pat@Patricks-Mac-mini.local>'
+git_author = 'Patrick Meyers <pmeyers279@gmail.com>'
+git_committer = 'Patrick Meyers <pmeyers279@gmail.com>'
 git_status = None

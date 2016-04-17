@@ -51,6 +51,7 @@ packagenames = find_packages(exclude=['utils'])
 
 # find all scripts
 scripts = glob.glob('bin/*')
+print scripts
 
 setup(name=PACKAGENAME,
       version=VERSION,
@@ -58,10 +59,10 @@ setup(name=PACKAGENAME,
       packages=packagenames,
       ext_modules=[],
       requires=['gwpy', 'obspy'],
-      scripts=['bin/coherence_pipe'],
       provides=[PACKAGENAME],
       author=AUTHOR,
       author_email=AUTHOR_EMAIL,
+      scripts=scripts,
       license=LICENSE,
       long_description=LONG_DESCRIPTION,
       zip_safe=False,
