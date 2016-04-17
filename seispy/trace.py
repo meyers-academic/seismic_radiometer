@@ -432,7 +432,7 @@ def fetch(st, et, channel, framedir='./'):
         # start is after frame start end is after or equal to frame end
         # we want to load st -> fst + dur
         elif st >= fst and st < (fst + dur) and et >= fst + dur:
-            val = read_frame(file, channel, st=st, et=fst+dur)
+            val = read_frame(file, channel, st=st, et=fst + dur)
             vals = np.hstack((vals, val.value))
         # start is before frame start, end is after frame end
         # load fst -> fst + dur (whole frame)
@@ -500,7 +500,7 @@ def read_mseed(f, starttime=None, endtime=None):
     starttime : `int`, optional
         GPS time. Start time. defaults
         to start time of file to load
-    endtime : `int`, optional 
+    endtime : `int`, optional
         GPS time. End time. Defaults to
         end time of file to load.
     """
@@ -516,7 +516,6 @@ def read_mseed(f, starttime=None, endtime=None):
     if starttime is None and endtime is None:
         print 'No start times specified, reading whole file...'
     elif isinstance(starttime, int) and isinstance(endtime, int):
-        dur = endtime - starttime
         # check start/end times match file we're reading...useful
         # for fetching
         if starttime <= data_st:
@@ -530,8 +529,8 @@ def read_mseed(f, starttime=None, endtime=None):
         data = read(f, starttime=st, endtime=et)
 
     tr = data[0]
-    trace = Trace(tr.data, x0=starttime, dx=1. / tr.stats.sampling_rate, channel='%s:%s' % (
-        data[0].stats.station, data[0].stats.channel))
+    trace = Trace(tr.data, x0=starttime, dx=1. / tr.stats.sampling_rate,
+                  channel='%s:%s' % (data[0].stats.station, data[0].stats.channel))
     return trace
 
 
