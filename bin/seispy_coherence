@@ -45,6 +45,8 @@ data1 = fetch(params.st, params.et, '%s:HHZ' %
               params.channel1, framedir=params.directory)
 data2 = fetch(params.st, params.et, '%s:HHZ' %
               params.channel2, framedir=params.directory)
+print data1.times[-1] - data1.times[0]
+print data2.times[-1] - data2.times[0]
 coh = data1.coherence(data2, fftlength=128, normtype='bit')
 coh.write('%s/%s/%s-%s-COHERENCE-%d-%d.hdf' %
           (params.outdir, 'COH-%s' % str(params.st)[0:5], params.channel1,

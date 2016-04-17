@@ -58,11 +58,11 @@ datajob.set_log_file('/usr1/%s/%s-%s-%d.log' % (os.environ['USER'], params.chann
 day_st = st
 for day in range(params.ndays):
     job = pipeline.CondorDAGJob('vanilla', 'seispy_coherence')
-    job.set_sub_file('%s/%s-%s-%d-%d-days' % (params.dagdir, params.channel1,
+    job.set_sub_file('%s-%s-%d-%d-days' % (params.channel1,
                                               params.channel2, st, params.ndays))
-    job.set_stderr_file('%s/%s/%d.err' % (params.dagdir, 'err', day + 1))
-    job.set_stdout_file('%s/%s/%d.out' % (params.dagdir, 'out', day + 1))
-    job.set_log_file('%s/%s-%s-%d.log' % (params.dagdir, params.channel1,
+    job.set_stderr_file('%s/%d.err' % ('err', day + 1))
+    job.set_stdout_file('%s/%d.out' % ('out', day + 1))
+    job.set_log_file('%s-%s-%d.log' % (params.channel1,
                                           params.channel2, st))
     node = pipeline.CondorDAGNode(job)
     node.add_macro('starttime', day_st)
@@ -75,8 +75,8 @@ ARG = '--channel1 %s --channel2 %s -s $(starttime) -e $(endtime) -o %s' % (
     params.channel1, params.channel2, params.outdir)
 datajob.add_arg(ARG)
 
-datajob.set_stderr_file('%s/%s/$(day).err' % (params.dagdir, 'err'))
-datajob.set_stdout_file('%s/%s/$(day).out' % (params.dagdir, 'out'))
+datajob.set_stderr_file('%s/$(day).err' % ('err'))
+datajob.set_stdout_file('%s/$(day).out' % ('out'))
 datajob.set_sub_file('%s/%s-%s-%d-%d-days' % (params.dagdir, params.channel1,
                                               params.channel2, st, params.ndays))
 datajob.add_condor_cmd('getEnv', 'True')

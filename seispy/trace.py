@@ -406,6 +406,7 @@ def fetch(st, et, channel, framedir='./'):
     st_dir = int(str(st)[:5])
     et_dir = int(str(et)[:5])
     dirs = np.arange(st_dir, et_dir + 1)
+    print dirs
     files = []
     for directory in dirs:
         # print 'FRAME READING TESTING MODE!!!'
@@ -413,33 +414,49 @@ def fetch(st, et, channel, framedir='./'):
         new_files = sorted(glob.glob(loaddir + '/*.gwf'))
         files.extend(new_files)
     vals = np.asarray([])
+    print st
+    print et
 
-    for file in files:
+#    for file in files:
+    for ii in range(len(files)):
+        print ii
+        file = files[ii]
         # start is before frame start, end is before frame end
         # we want to load fst -> et
+        print file
         fst = int(file.split('-')[-2])
         dur = int(file.split('-')[-1][:-4])
+        print fst
+        print dur
+        print fst + dur
         if st <= fst and et <= fst + dur:
             val = read_frame(file, channel, st=fst, et=et)
             vals = np.hstack((vals, val.value))
+            print 1
         # start is after frame start, end is before frame end
         # we want to load only st -> et
         elif st >= fst and et <= fst + dur:
             val = read_frame(file, channel, st=st, et=et)
             vals = np.hstack((vals, val.value))
+            print 2
         # start is after frame start end is after or equal to frame end
         # we want to load st -> fst + dur
-        elif st >= fst and et >= fst + dur:
-            val = read_frame(file, channel, st=st, et=fst + dur)
+        elif st >= fst and st < (fst + dur) and et >= fst + dur:
+            val = read_frame(file, channel, st=st, et=fst+dur)
+            vals = np.hstack((vals, val.value))
         # start is before frame start, end is after frame end
         # load fst -> fst + dur (whole frame)
         elif st <= fst and et >= fst + dur:
-            val = read_frame(file, channel, st=fst, et=fst + dur)
-            vals = np.hstack(vals, val.value)
+            val = read_frame(file, channel)
+            vals = np.hstack((vals, val.value))
+            print 4
+        else:
+            continue
+            print 'CONT'
         TS = Trace(vals, x0=st, dx=val.dx, name=val.name, channel=val.channel)
         loc = TS.get_location()
         TS.location = loc
-        return TS
+    return TS
 
 
 def read_frame(frame, channel, st=None, et=None, cfac=1.589459e-9):
@@ -471,6 +488,7 @@ def read_frame(frame, channel, st=None, et=None, cfac=1.589459e-9):
     else:
         d1 = cfac * Trace.read(frame, channel).detrend()
         d2 = TimeSeries.read(frame, channel)
+    d1 = Trace(d1.value)
     d1.__dict__ = d2.copy_metadata()
     d1.location = d1.get_location()
     return d1
