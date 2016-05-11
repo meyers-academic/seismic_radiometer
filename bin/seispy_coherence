@@ -28,7 +28,7 @@ def parse_command_line():
         "-o", "--output-directory", dest="outdir", type=str,
         help="output top-level directory", default='./')
     parser.add_option(
-        "--normalization-type", default=None, dest="norm", type=str,
+        "--normalization-type", default='bit', dest="norm", type=str,
         help="normalization type!")
     params, args = parser.parse_args()
     return params

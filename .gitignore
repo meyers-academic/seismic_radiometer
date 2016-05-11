@@ -6,3 +6,4 @@ build/
 dist/
 *.hdf5
 condor/
+docs/_build
