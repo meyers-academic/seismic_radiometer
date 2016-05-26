@@ -51,17 +51,18 @@ packagenames = find_packages(exclude=['utils'])
 
 # find all scripts
 scripts = glob.glob('bin/*')
+print scripts
 
 setup(name=PACKAGENAME,
       version=VERSION,
       description=DESCRIPTION,
-      scripts=scripts,
       packages=packagenames,
       ext_modules=[],
       requires=['gwpy', 'obspy'],
       provides=[PACKAGENAME],
       author=AUTHOR,
       author_email=AUTHOR_EMAIL,
+      scripts=scripts,
       license=LICENSE,
       long_description=LONG_DESCRIPTION,
       zip_safe=False,

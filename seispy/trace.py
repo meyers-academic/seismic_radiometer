@@ -1,5 +1,5 @@
 from gwpy.timeseries import TimeSeries
-from gwpy.spectrum import Spectrum
+from seispy.spec import Spec
 import numpy as np
 import scipy
 import glob
@@ -176,14 +176,7 @@ class Trace(TimeSeries):
         fft : `Spec`, fft
             Whitened if wanted
         """
-        try:
-            kwargs['whiten']
-        except KeyError:
-            kwargs['whiten'] = False
-        try:
-            kwargs['window']
-        except KeyError:
-            kwargs['window'] = 'hanning'
+        kwargs = self._check_fft_kwargs(kwargs)
 
         # whiten
         # if kwargs['whiten']:
@@ -211,6 +204,17 @@ class Trace(TimeSeries):
             fft = fft.whiten(width=1)
 
         return fft
+
+    def _check_fft_kwargs(self, kwargs):
+        try:
+            kwargs['whiten']
+        except KeyError:
+            kwargs['whiten'] = False
+        try:
+            kwargs['window']
+        except KeyError:
+            kwargs['window'] = 'hanning'
+        return kwargs
 
     def coherence_calc(self, tr, whiten=False, bandpass=None, flow=1e-4,
                        fhigh=50, normtype=None, normlen=None, window='hanning',
@@ -399,19 +403,24 @@ def fetch(st, et, channel, framedir='./'):
     # uncomment when not testing
     # for looping over directories where frames
     # are located
-    # st_dir = int(str(st)[:5])
-    # et_dir = int(str(et)[:5])
-    # dirs = np.arange(st_dir, et_dir + 1)
-    # for dir in dirs:
-    print 'FRAME READING TESTING MODE!!!'
-    files = sorted(glob.glob(framedir + '*.gwf'))
+    st_dir = int(str(st)[:5])
+    et_dir = int(str(et)[:5])
+    dirs = np.arange(st_dir, et_dir + 1)
+    files = []
+    for directory in dirs:
+        # print 'FRAME READING TESTING MODE!!!'
+        loaddir = '%s/M-%d/' % (framedir, directory)
+        new_files = sorted(glob.glob(loaddir + '/*.gwf'))
+        files.extend(new_files)
     vals = np.asarray([])
 
-    for file in files:
-        fst = file.split('-')[2]
-        dur = file.split('-')[-1][:-4]
+#    for file in files:
+    for ii in range(len(files)):
+        file = files[ii]
         # start is before frame start, end is before frame end
         # we want to load fst -> et
+        fst = int(file.split('-')[-2])
+        dur = int(file.split('-')[-1][:-4])
         if st <= fst and et <= fst + dur:
             val = read_frame(file, channel, st=fst, et=et)
             vals = np.hstack((vals, val.value))
@@ -422,17 +431,20 @@ def fetch(st, et, channel, framedir='./'):
             vals = np.hstack((vals, val.value))
         # start is after frame start end is after or equal to frame end
         # we want to load st -> fst + dur
-        elif st >= fst and et >= fst + dur:
+        elif st >= fst and st < (fst + dur) and et >= fst + dur:
             val = read_frame(file, channel, st=st, et=fst + dur)
+            vals = np.hstack((vals, val.value))
         # start is before frame start, end is after frame end
         # load fst -> fst + dur (whole frame)
         elif st <= fst and et >= fst + dur:
-            val = read_frame(file, channel, st=fst, et=fst + dur)
-            vals = np.hstack(vals, val.value)
+            val = read_frame(file, channel)
+            vals = np.hstack((vals, val.value))
+        else:
+            continue
         TS = Trace(vals, x0=st, dx=val.dx, name=val.name, channel=val.channel)
         loc = TS.get_location()
         TS.location = loc
-        return TS
+    return TS
 
 
 def read_frame(frame, channel, st=None, et=None, cfac=1.589459e-9):
@@ -464,6 +476,7 @@ def read_frame(frame, channel, st=None, et=None, cfac=1.589459e-9):
     else:
         d1 = cfac * Trace.read(frame, channel).detrend()
         d2 = TimeSeries.read(frame, channel)
+    d1 = Trace(d1.value)
     d1.__dict__ = d2.copy_metadata()
     d1.location = d1.get_location()
     return d1
@@ -487,7 +500,7 @@ def read_mseed(f, starttime=None, endtime=None):
     starttime : `int`, optional
         GPS time. Start time. defaults
         to start time of file to load
-    endtime : `int`, optional 
+    endtime : `int`, optional
         GPS time. End time. Defaults to
         end time of file to load.
     """
@@ -503,7 +516,6 @@ def read_mseed(f, starttime=None, endtime=None):
     if starttime is None and endtime is None:
         print 'No start times specified, reading whole file...'
     elif isinstance(starttime, int) and isinstance(endtime, int):
-        dur = endtime - starttime
         # check start/end times match file we're reading...useful
         # for fetching
         if starttime <= data_st:
@@ -517,8 +529,8 @@ def read_mseed(f, starttime=None, endtime=None):
         data = read(f, starttime=st, endtime=et)
 
     tr = data[0]
-    trace = Trace(tr.data, x0=starttime, dx=1. / tr.stats.sampling_rate, channel='%s:%s' % (
-        data[0].stats.station, data[0].stats.channel))
+    trace = Trace(tr.data, x0=starttime, dx=1. / tr.stats.sampling_rate,
+                  channel='%s:%s' % (data[0].stats.station, data[0].stats.channel))
     return trace
 
 
