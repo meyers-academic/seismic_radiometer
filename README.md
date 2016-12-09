@@ -10,14 +10,15 @@ Non-python dependencies are best done with macports
 
 `sudo port install lal lalframe py27-lal py27-lalframe`
 
-It's recommended that you create a virtualenv to install this you can install this with. I keep my virtualenvs in an "opt" directory in my home directory:
+It's recommended that you create a virtualenv to install in. I keep my virtualenvs in an "opt" directory in my home directory:
 
 ```
 sudo port select --set virtualenv virtualenv-2.7
 virtualenv ~/opt/seispy/
 ```
 
-You'll need to add the lal swig python bindings to your python path for your virtualenv. Find where lal and lalframe are installed with:
+
+You'll need to add the python lal and lalframe bindings explicitly to the PYTHONPATH when you activate your virtualenv. This can be done by looking for where they're installed with these commands:
 
 `port contents py27-lal` and `port contents py27-lalframe`
 
@@ -29,12 +30,15 @@ and
 
 `/opt/local/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/site-packages/lal`
 
-Now add this to the end of the activation script for your virtualenv:
+You can then add a command to append them to your `PYTHONPATH` at the end of the activation script for your virtualenv:
 
 `echo 'PYTHONPATH=$PYTHONPATH:/opt/local/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/site-packages/lalframe:/opt/local/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/site-packages/lal' >> ~/opt/seispy/bin/activate`
 
-Now you can activate your virtualenv and it should be able to find lal properly.
+Now you can source your virtualenv and hopefully things will work. You can test whether your installation is working by moving to the top level directory and running
 
+```
+python setup.py test
+```
 
 ### Linux
 
