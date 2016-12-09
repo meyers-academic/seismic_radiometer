@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (C) Pat Meyers
+# Copyright (C) Patrick Meyers (2013)
 #
-# This file is part of seispy
+# This file is part of SeisMon
 #
 # SeisMon is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,12 +18,13 @@
 # You should have received a copy of the GNU General Public License
 # along with SeisMon.  If not, see <http://www.gnu.org/licenses/>
 
-"""Setup script for seispy
+"""Setup script for SeisMon
 """
 
 import glob
 import os.path
 from setuptools import (find_packages, setup)
+
 from utils import version
 
 PACKAGENAME = 'seispy'
@@ -34,9 +35,9 @@ VERSION_PY = os.path.join(PACKAGENAME, 'version.py')
 vcinfo = version.GitStatus()
 vcinfo(VERSION_PY)
 
-DESCRIPTION = 'Seismic data processing tool kit based on GWpy'
+DESCRIPTION = 'Basketball data analysis'
 LONG_DESCRIPTION = ''
-AUTHOR = 'Pat Meyers'
+AUTHOR = 'Patrick Meyers'
 AUTHOR_EMAIL = 'patrick.meyers@ligo.org'
 LICENSE = 'GPLv3'
 
@@ -51,20 +52,20 @@ packagenames = find_packages(exclude=['utils'])
 
 # find all scripts
 scripts = glob.glob('bin/*')
-print scripts
 
 setup(name=PACKAGENAME,
       version=VERSION,
       description=DESCRIPTION,
+      scripts=scripts,
       packages=packagenames,
       ext_modules=[],
-      requires=['gwpy', 'obspy'],
+      requires=[],
       provides=[PACKAGENAME],
       author=AUTHOR,
       author_email=AUTHOR_EMAIL,
-      scripts=scripts,
       license=LICENSE,
       long_description=LONG_DESCRIPTION,
       zip_safe=False,
+      test_suite='seispy.tests',
       use_2to3=True
       )
