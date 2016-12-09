@@ -67,7 +67,6 @@ install:
   # install dependencies (using version-dependent requirements if needed)
   - . .travis/install-requirements.sh
   # add extra dependencies for testing
-  - pip install ${PRE} -r requirements-extra.txt
   # build
   - python setup.py build
 

@@ -413,6 +413,8 @@ def fetch(st, et, channel, framedir='./'):
         new_files = sorted(glob.glob(loaddir + '/*.gwf'))
         files.extend(new_files)
     vals = np.asarray([])
+    if len(files)==0:
+        raise ValueError('No files found...we looked here: %s' % loaddir)
 
 #    for file in files:
     for ii in range(len(files)):
