@@ -23,6 +23,6 @@ docs/*.inv
 .ipynb*/
 
 # version
-basketball_db/version.py
+seispy/version.py
 
 .DS_Store

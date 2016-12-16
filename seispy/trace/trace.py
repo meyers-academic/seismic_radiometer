@@ -474,10 +474,10 @@ def read_frame(frame, channel, st=None, et=None, cfac=1.589459e-9):
 
     if st is not None and et is not None:
         d1 = cfac * Trace.read(frame, channel, st, et).detrend()
-        d2 = TimeSeries.read(frame, channel, st, et)
+        d2 = TimeSeries.read(frame, channel, st, et, format='lalframe')
     else:
         d1 = cfac * Trace.read(frame, channel).detrend()
-        d2 = TimeSeries.read(frame, channel)
+        d2 = TimeSeries.read(frame, channel, format='lalframe')
     d1 = Trace(d1.value)
     d1.__dict__ = d2.copy_metadata()
     d1.location = d1.get_location()
