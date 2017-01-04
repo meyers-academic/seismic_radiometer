@@ -24,8 +24,23 @@
 import glob
 import os.path
 from setuptools import (find_packages, setup)
-
+from setuptools.command.install import install
+from distutils.core import Extension
+from distutils.command.build import build
+import sys
 from utils import version
+import numpy
+class CustomBuild(build):
+    sub_commands = [
+        ('build_ext', build.has_ext_modules),
+        ('build_py', build.has_pure_modules),
+        ('build_clib', build.has_c_libraries),
+        ('build_scripts', build.has_scripts),
+    ]
+class CustomInstall(install):
+    def run(self):
+        self.run_command('build_ext')
+        self.do_egg_install()
 
 PACKAGENAME = 'seispy'
 
@@ -51,9 +66,13 @@ RELEASE = vcinfo.version != vcinfo.id and 'dev' not in VERSION
 packagenames = find_packages(exclude=['utils'])
 
 # find all scripts
+#sys.path.append(glob.glob('~/opt/seispy/lib/python2.7/site-packages/numpy/f2py/src/'))
 scripts = glob.glob('bin/*')
+#module1 = Extension('_lsqr', sources=['lsqr_wrap.c', 'seispy/clsqr2/lsqr.c',
+#    'seispy/clsqr2/lsqrblas.c'])
 
 setup(name=PACKAGENAME,
+      cmdclass={'build': CustomBuild, 'install': CustomInstall},
       version=VERSION,
       description=DESCRIPTION,
       scripts=scripts,

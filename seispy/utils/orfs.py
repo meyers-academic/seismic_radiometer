@@ -30,7 +30,7 @@ def orf_p(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1,
         frequency array
     """
     # get separation vector
-    x_vec = det1_loc - det2_loc
+    x_vec = np.array(det1_loc) - np.array(det2_loc)
     # make it a unit vector
     thetas = np.arange(0,181,thetamesh) * np.pi / 180
     phis = np.arange(0,360,phimesh) * np.pi / 180
@@ -142,10 +142,10 @@ def orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetamesh=1,
         frequency array
     """
     # get separation vector
-    x_vec = det1_loc - det2_loc
+    x_vec = np.array(det1_loc) - np.array(det2_loc)
     # make it a unit vector
-    thetas = np.arange(0,181,thetamesh) * np.pi / 180
-    phis = np.arange(0,360,phimesh) * np.pi / 180
+    thetas = np.arange(0,180+thetamesh,thetamesh) * np.pi / 180
+    phis = np.arange(0,360+phimesh,phimesh) * np.pi / 180
     THETAS, PHIS = np.meshgrid(thetas, phis)
     dtheta = thetas[1] - thetas[0]
     dphi = phis[1] - phis[0]
