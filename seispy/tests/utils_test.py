@@ -83,26 +83,6 @@ class TestUtils(unittest.TestCase):
         delta_vec = [1000,0,0]
         dt = calc_travel_time(delta_vec, OMEGA, v)
         npt.assert_array_almost_equal(dt, np.array([1,0, 0]))
-    def test_get_pol_directions(self):
-        # wave travels in E direction
-        # psi=0 => polarization should be in N.
-        dx, dy, dz = get_polarization_coeffs(0, np.pi / 2, 0)
-        npt.assert_almost_equal(dx, 0)
-        npt.assert_almost_equal(dy, 1)
-        npt.assert_almost_equal(dz, 0)
-        # wave travels in N direction
-        # just shift your right hand around. it'll make sense.
-        # psi=0 => polarization should be in -E.
-        dx, dy, dz = get_polarization_coeffs(np.pi/2, np.pi / 2, 0)
-        npt.assert_almost_equal(dx, -1)
-        npt.assert_almost_equal(dy, 0)
-        npt.assert_almost_equal(dz, 0)
-        # wave travels in Z direction
-        # psi=0 => polarization should be in E.
-        dx, dy, dz = get_polarization_coeffs(0, 0, 0)
-        npt.assert_almost_equal(dx, 0)
-        npt.assert_almost_equal(dy, 1)
-        npt.assert_almost_equal(dz, 0)
 if __name__=="__main__":
     unittest.main()
 
