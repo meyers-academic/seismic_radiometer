@@ -3,6 +3,7 @@ import numpy as np
 import time
 from scipy.interpolate import interp1d
 from scipy.special import sph_harm
+from .utils import calc_travel_time
 
 def orf_p(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1,
         phimesh=1):
@@ -116,8 +117,8 @@ def orf_s(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, ff=None, thetamesh=1,phimesh
             OmgZ*x_vec[0])/vs) * (dtheta*dphi*3/(8*np.pi))))
     return gammas, ff
 
-def orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetamesh=1,
-        phimesh=1):
+def orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetas=None,
+        phis=None):
     """
     Calculate p-wave overlap reduction function between
     two channels
@@ -133,6 +134,12 @@ def orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetamesh=1,
         location of second sensor
     vp : `float`
         velocity of p-wave
+    thetas : `numpy.ndarray`, optional
+        list of theta values to use. Assumed to be angle FROM the north pole.
+        If not supplied, defaults to 3 -> 177 in increments of 6 degrees.
+    phis : `numpy.ndarray`, optional
+        list of phi values to use. If not supplied,
+        defaults to 3 -> 357 in increments of 6 degrees.
 
     Returns
     -------
@@ -144,23 +151,27 @@ def orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetamesh=1,
     # get separation vector
     x_vec = np.array(det1_loc) - np.array(det2_loc)
     # make it a unit vector
-    thetas = np.arange(0,180+thetamesh,thetamesh) * np.pi / 180
-    phis = np.arange(0,360+phimesh,phimesh) * np.pi / 180
+    if thetas is None:
+        thetas = np.arange(3,180,6) * np.pi / 180
+    if phis is None:
+        phis = np.arange(3,360,6) * np.pi / 180
     THETAS, PHIS = np.meshgrid(thetas, phis)
-    dtheta = thetas[1] - thetas[0]
-    dphi = phis[1] - phis[0]
     # much faster to vectorize things
     OmgX = np.sin(THETAS)*np.cos(PHIS)
     OmgY = np.sin(THETAS)*np.sin(PHIS)
     OmgZ = (np.cos(THETAS))
-    gammas = (np.sin(THETAS) * (OmgX*ch1_vec[0] +
+    Omg_shape = OmgX.shape
+    OMEGA = np.vstack((OmgX.flatten(), OmgY.flatten(), OmgZ.flatten())).T
+    dt = calc_travel_time(x_vec, OMEGA, vp)
+    dt = dt.reshape(Omg_shape)
+    sf = ((OmgX*ch1_vec[0] +
             OmgY*ch1_vec[1] + OmgZ*ch1_vec[2]) * (OmgX*ch2_vec[0] +
-            OmgY*ch2_vec[1] + OmgZ*ch2_vec[2]) *
-            np.exp(2*np.pi*1j*f*(OmgX*x_vec[0] + OmgY*x_vec[1] +
-                OmgZ*x_vec[0])/vp) * (3/(4*np.pi)))
+            OmgY*ch2_vec[1] + OmgZ*ch2_vec[2]))
+    gammas = sf *  np.exp(-2*np.pi*1j*f*dt)
     return gammas, phis, thetas
 
-def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f, thetamesh=1,phimesh=1):
+def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
+        thetas=None,phis=None):
     """
     Calculate p-wave overlap reduction function between
     two channels
@@ -189,8 +200,10 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f, thetamesh=1,p
     # get separation vector
     x_vec = det1_loc - det2_loc
     # make it a unit vector
-    thetas = np.arange(0,181,thetamesh) * np.pi / 180
-    phis = np.arange(0,360,phimesh) * np.pi / 180
+    if thetas is None:
+        thetas = np.arange(3,180,6) * np.pi / 180
+    if phis is None:
+        phis = np.arange(3,360,6) * np.pi / 180
     THETAS, PHIS = np.meshgrid(thetas, phis)
     dtheta = thetas[1] - thetas[0]
     dphi = phis[1] - phis[0]
@@ -199,27 +212,25 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f, thetamesh=1,p
     OmgY = np.sin(THETAS)*np.sin(PHIS)
     OmgZ = (np.cos(THETAS))
     # get vector perp to Omega
-    PsiX = OmgX + 2 * np.random.rand(1)-1
-    PsiY = OmgY + 2 * np.random.rand(1)-1
+    PsiX = -np.sin(PHIS)
+    PsiY = np.cos(PHIS)
     # force dot product to be zero, make psi a unit vector
-    PsiZ = -(PsiX*OmgX + PsiY*OmgY) / OmgZ
-    normfac = np.sqrt(PsiX**2 + PsiY**2 + PsiZ**2)
-    PsiX *= 1./normfac
-    PsiY *= 1./normfac
-    PsiZ *= 1./normfac
+    PsiZ = np.zeros(PHIS.shape)
     # take cross product of omega and psi to
     # get third vector
-    ChiX = OmgY*PsiZ - OmgZ*PsiY
-    ChiY = OmgZ*PsiX - OmgX*PsiZ
-    ChiZ = OmgX*PsiZ - OmgZ*PsiX
-    gammas = (np.sin(THETAS) *
-        (((PsiX*ch1_vec[0] +PsiY*ch1_vec[1] + PsiZ*ch1_vec[2]) *
-        (PsiX*ch2_vec[0] +PsiY*ch2_vec[1] + PsiZ*ch2_vec[2])) +
-        ((ChiX*ch1_vec[0] +ChiY*ch1_vec[1] + ChiZ*ch1_vec[2]) *
-        (ChiX*ch2_vec[0] +ChiY*ch2_vec[1] + ChiZ*ch2_vec[2]))) *
-        np.exp(2*np.pi*1j*f*(OmgX*x_vec[0] + OmgY*x_vec[1] +
-        OmgZ*x_vec[0])/vs) * (3/(8*np.pi)))
-    return gammas,phis,thetas
+    ChiX = -np.cos(THETAS)*np.cos(PHIS)
+    ChiY = -np.cos(THETAS)*np.sin(PHIS)
+    ChiZ = np.sin(THETAS)
+    sf1 = (PsiX*ch1_vec[0] +PsiY*ch1_vec[1] + PsiZ*ch1_vec[2]) *\
+        (PsiX*ch2_vec[0] +PsiY*ch2_vec[1] + PsiZ*ch2_vec[2])
+    sf2 = (ChiX*ch1_vec[0] +ChiY*ch1_vec[1] + ChiZ*ch1_vec[2]) *\
+        (ChiX*ch2_vec[0] +ChiY*ch2_vec[1] + ChiZ*ch2_vec[2])
+    omg_shape = OmgX.shape
+    OMEGA = np.vstack((OmgX.flatten(), OmgY.flatten(), OmgZ.flatten())).T
+    dt = calc_travel_time(x_vec, OMEGA, vs).reshape(omg_shape)
+    gamma1 = sf1 * np.exp(-2*np.pi*1j*f*dt)
+    gamma2 = sf2 * np.exp(-2*np.pi*1j*f*dt)
+    return gamma1,gamma2,phis,thetas
 
 def ccStatReadout_s_wave(Y, sigma, ch1_vec, ch2_vec, det1_loc, det2_loc, vs, thetamesh=1,phimesh=1):
     """
@@ -257,8 +268,6 @@ def ccStatReadout_s_wave(Y, sigma, ch1_vec, ch2_vec, det1_loc, det2_loc, vs, the
     thetas = np.arange(0,181,thetamesh) * np.pi / 180
     phis = np.arange(0,360,phimesh) * np.pi / 180
     THETAS, PHIS = np.meshgrid(thetas, phis)
-    print THETAS[:2,:2], THETAS.shape
-    print PHIS[:2,:2], PHIS.shape
     dtheta = thetas[1] - thetas[0]
     dphi = phis[1] - phis[0]
     # much faster to vectorize things
@@ -328,8 +337,6 @@ def ccStatReadout_p_wave(Y, sigma, ch1_vec, ch2_vec, det1_loc, det2_loc, vs, the
     thetas = np.arange(0,181,thetamesh) * np.pi / 180
     phis = np.arange(0,360,phimesh) * np.pi / 180
     THETAS, PHIS = np.meshgrid(thetas, phis)
-    print THETAS[:2,:2], THETAS.shape
-    print PHIS[:2,:2], PHIS.shape
     dtheta = thetas[1] - thetas[0]
     dphi = phis[1] - phis[0]
     # much faster to vectorize things
@@ -379,8 +386,10 @@ def orf_p_sph(l,m,ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1
     # get separation vector
     x_vec = det1_loc - det2_loc
     # make it a unit vector
-    thetas = np.arange(0,181,thetamesh) * np.pi / 180
+    thetas = np.arange(0,180,thetamesh) * np.pi / 180
     phis = np.arange(0,360,phimesh) * np.pi / 180
+    thetas += thetamesh/2.
+    phis += phimesh/2.
     THETAS, PHIS = np.meshgrid(thetas, phis)
     dtheta = thetas[1] - thetas[0]
     dphi = phis[1] - phis[0]
