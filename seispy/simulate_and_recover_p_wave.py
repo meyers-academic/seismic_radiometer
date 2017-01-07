@@ -4,19 +4,20 @@ use('agg')
 rc('text',usetex=True)
 import numpy as np
 from seispy.utils import orf_p_directional
+from seispy.utils import set_channel_vector
 from seispy.simulate import simulate_pwave
 from scipy.sparse.linalg import lsqr
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 verbose = False
-def set_vec(letter):
-    if letter == 'E':
-        v = [1,0,0]
-    elif letter=='N':
-        v = [0,1,0]
-    else:
-        v = [0,0,1]
-    return v
+#def set_vec(letter):
+#    if letter == 'E':
+#        v = [1,0,0]
+#    elif letter=='N':
+#        v = [0,1,0]
+#    else:
+#        v = [0,0,1]
+#    return v
 
 def main():
     conf=0.90
@@ -62,7 +63,7 @@ def main():
                         p1 = 1
                         p2 = 1
                     gamma, phis, thetas =\
-                        orf_p_directional(set_vec(letters[kk]),set_vec(letters[ll]),stations[jj],
+                        orf_p_directional(set_channel_vector(letters[kk]),set_channel_vector(letters[ll]),stations[jj],
                             stations[ii], 5700, 1)
                     gamma_shape = gamma.shape
                     gamma = gamma.reshape((gamma.size,1))
