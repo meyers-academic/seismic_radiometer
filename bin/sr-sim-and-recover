@@ -1,0 +1,69 @@
+#! /usr/bin/python
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
+from seispy.station.stationdata import SeismometerArray
+from seispy.station import StationArray, spiral, homestake
+import numpy as np
+
+# params for now
+conf=0.90
+duration = 200*8
+amplitude = 1e-6
+segdur=200
+noise_amplitude=4e-6
+phis_inj = np.pi/180 * np.array([180])
+thetas_inj = np.pi/180 * np.array([30])
+freqs = np.array([1])
+
+stations = homestake()
+stations = spiral(12)
+maxelevation=0
+# put things in terms of depth from highest station as opposed to 
+# elevation above sea level
+for station in stations:
+    if stations[station][2] > maxelevation:
+        maxelevation = stations[station][2]
+for station in stations:
+    stations[station][2] -= maxelevation
+    stations[station][2] = (stations[station][2])
+
+
+data = SeismometerArray.initialize_all_good(stations, duration)
+data.add_white_noise(noise_amplitude, segdur=segdur)
+for pp,tt,ff in zip(phis_inj, thetas_inj, freqs):
+    data.add_p_wave(amplitude, pp, tt, ff, duration)
+print np.mean((data[0]['HHE'].asd(segdur) / np.sqrt(segdur)))
+final_map_p, phis, thetas = data.p_wave_recovery_matrices(stations, freqs[0], fftlength=segdur, overlap=segdur/2, autocorrelations=True)
+
+
+map_shape=final_map_p.shape
+flat_map = final_map_p.flatten().squeeze()
+args = np.argsort(flat_map)[::-1]
+cdf = flat_map[args].cumsum()
+cdf = cdf/cdf[-1]
+cdf_map = np.zeros(cdf.size)
+cdf_map[args]=cdf
+conf_args = args[cdf<conf]
+Map_conf_percent = np.zeros(cdf.size)
+Map_conf_percent[conf_args]=1
+map_conf = Map_conf_percent.reshape(map_shape)
+
+print 'Total power in %f confidence is: %4.2e m' % (conf, np.sqrt(flat_map[conf_args].sum()))
+
+
+plt.figure()
+plt.subplot(111,projection='aitoff')
+plt.pcolormesh(phis-np.pi, thetas-np.pi/2, final_map_p.T /
+    float(segdur), cmap='viridis')
+plt.colorbar(label=r'amplitude [$\textrm{m}^2$]')
+CS = plt.contour(phis-np.pi, thetas-np.pi/2,
+        map_conf.T,
+        colors='k', linewidth=4,levels=[0])
+plt.scatter(phis_inj-np.pi, thetas_inj - np.pi / 2, s=64, alpha=0.5)
+plt.xlabel(r'$\phi$')
+plt.ylabel(r'$\theta$')
+plt.grid(True)
+plt.savefig('test_map')
+plt.close()
+

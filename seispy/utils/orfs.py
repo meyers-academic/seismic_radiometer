@@ -192,13 +192,15 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
 
     Returns
     -------
-    gamma : `numpy.ndarray`
-        overlap reduction function for p-waves
+    gamma1 : `numpy.ndarray`
+        overlap reduction function for s-waves, pol1
+    gamma2 : `numpy.ndarray`
+        overlap reduction function for s-waves, pol 2
     ff : `numpy.ndarray`
         frequency array
     """
     # get separation vector
-    x_vec = det1_loc - det2_loc
+    x_vec = np.array(det1_loc) - np.array(det2_loc)
     # make it a unit vector
     if thetas is None:
         thetas = np.arange(3,180,6) * np.pi / 180
@@ -232,6 +234,63 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
     gamma2 = sf2 * np.exp(-2*np.pi*1j*f*dt)
     return gamma1,gamma2,phis,thetas
 
+def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, f,
+        thetas=None,phis=None):
+    """
+    Calculate r-wave overlap reduction function between
+    two channels
+    Parameters
+    ----------
+    ch1_vec : `list-like`
+        channel 1 vector
+    ch2_vec : `list-like`
+        channel2 vector
+    det1_loc : `list-like`
+        location of first sensor
+    det2_loc : `list-like`
+        location of second sensor
+    vr : `float`
+        velocity of s-wave
+    f : `float`
+        frequency at which you would like the orf
+
+    Returns
+    -------
+    gamma1 : `numpy.ndarray`
+        overlap reduction function for s-waves, pol1
+    ff : `numpy.ndarray`
+        frequency array
+    """
+    # get separation vector
+    x_vec = np.array(det1_loc) - np.array(det2_loc)
+    # make it a unit vector
+    if thetas is None:
+        thetas = np.arange(3,180,6) * np.pi / 180
+    if phis is None:
+        phis = np.arange(3,360,6) * np.pi / 180
+    THETAS, PHIS = np.meshgrid(thetas, phis)
+    # much faster to vectorize things
+    OmgX = np.sin(THETAS)*np.cos(PHIS)
+    OmgY = np.sin(THETAS)*np.sin(PHIS)
+    OmgZ = (np.cos(THETAS))
+    # R-wave stuff
+    R1 = np.cos(PHIS)
+    R2 = np.sin(PHIS)
+    R3 = np.exp(1j * np.pi / 2) * epsilon
+    # get vector perp to Omega
+    # take cross product of omega and psi to
+    # get third vector
+    sf1 = (R1*ch1_vec[0] + R2*ch1_vec[1] + R3*ch1_vec[2])
+    sf2 = (R1*ch2_vec[0] + R2*ch2_vec[1] + R3*ch2_vec[2])
+
+    omg_shape = OmgX.shape
+    OMEGA = np.vstack((OmgX.flatten(), OmgY.flatten(), OmgZ.flatten())).T
+    dt = calc_travel_time(x_vec, OMEGA, vr).reshape(omg_shape)
+    gamma = sf1*np.conj(sf2)*np.exp(-2*np.pi*1j*f*dt) * np.exp(-(det1_loc[2] +
+        det2_loc[2]) / float(alpha))
+    return gamma,phis,thetas
+
+
 def ccStatReadout_s_wave(Y, sigma, ch1_vec, ch2_vec, det1_loc, det2_loc, vs, thetamesh=1,phimesh=1):
     """
     Read out sky map for S-wave based on cross-correlation spectrum.
@@ -263,7 +322,7 @@ def ccStatReadout_s_wave(Y, sigma, ch1_vec, ch2_vec, det1_loc, det2_loc, vs, the
         frequency array
     """
     # get separation vector
-    x_vec = det1_loc - det2_loc
+    x_vec = np.array(det1_loc) - np.array(det2_loc)
     # make it a unit vector
     thetas = np.arange(0,181,thetamesh) * np.pi / 180
     phis = np.arange(0,360,phimesh) * np.pi / 180
@@ -332,7 +391,7 @@ def ccStatReadout_p_wave(Y, sigma, ch1_vec, ch2_vec, det1_loc, det2_loc, vs, the
         frequency array
     """
     # get separation vector
-    x_vec = det1_loc - det2_loc
+    x_vec = np.array(det1_loc) - np.array(det2_loc)
     # make it a unit vector
     thetas = np.arange(0,181,thetamesh) * np.pi / 180
     phis = np.arange(0,360,phimesh) * np.pi / 180
@@ -384,7 +443,7 @@ def orf_p_sph(l,m,ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1
         frequency array
     """
     # get separation vector
-    x_vec = det1_loc - det2_loc
+    x_vec = np.array(det1_loc) - np.array(det2_loc)
     # make it a unit vector
     thetas = np.arange(0,180,thetamesh) * np.pi / 180
     phis = np.arange(0,360,phimesh) * np.pi / 180

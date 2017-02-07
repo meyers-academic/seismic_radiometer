@@ -59,6 +59,8 @@ def simulate_swave(stations, A, phi, theta, psi, frequency, duration, Fs=100, c=
     tau_round = np.round(taus*Fs)/Fs
     ts = min(-tau_round)
     te = max(-tau_round)
+    Nsamps = duration * Fs
+    final_times = np.arange(0, duration, 1/Fs)
     times = np.arange(0, ts + duration + te, 1/Fs)
     # shift backward in time
     times += ts
@@ -75,11 +77,11 @@ def simulate_swave(stations, A, phi, theta, psi, frequency, duration, Fs=100, c=
         else:
             signal = A * np.sin(2*np.pi*frequency*times + phase)
         # impose time delay
-        amp = np.roll(signal,delaySamps)
-        amp += noise_amp * np.random.randn(times.size)
-        data[key]['E'] = Trace(dx*amp, sample_rate=Fs, times=times)
-        data[key]['N'] = Trace(dy*amp, sample_rate=Fs, times=times)
-        data[key]['Z'] = Trace(dz*amp, sample_rate=Fs, times=times)
+        amp = np.roll(signal,delaySamps)[:Nsamps]
+        amp += noise_amp * np.random.randn(Nsamps)
+        data[key]['E'] = Trace(dx*amp, sample_rate=Fs, times=final_times)
+        data[key]['N'] = Trace(dy*amp, sample_rate=Fs, times=final_times)
+        data[key]['Z'] = Trace(dz*amp, sample_rate=Fs, times=final_times)
         for key2 in data[key].keys():
             data[key][key2].location = station
     return data
