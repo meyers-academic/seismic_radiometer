@@ -273,6 +273,13 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, 
     OmgX = np.sin(THETAS)*np.cos(PHIS)
     OmgY = np.sin(THETAS)*np.sin(PHIS)
     OmgZ = (np.cos(THETAS))
+    # only theta = pi/2 sticks around, okay? ok.
+    OmgX[THETAS < np.pi / 2] = 0
+    OmgY[THETAS < np.pi / 2] = 0
+    OmgZ[THETAS < np.pi / 2] = 0
+    OmgX[THETAS > np.pi / 2] = 0
+    OmgY[THETAS > np.pi / 2] = 0
+    OmgZ[THETAS > np.pi / 2] = 0
     # R-wave stuff
     R1 = np.cos(PHIS)
     R2 = np.sin(PHIS)
@@ -467,4 +474,19 @@ def orf_p_sph(l,m,ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1
             np.exp(2*np.pi*1j*f*(OmgX*x_vec[0] + OmgY*x_vec[1] +
                 OmgZ*x_vec[0])/vp) * (dtheta*dphi*3/(4*np.pi))))
     return gammas, ff
+
+def orf_picker(string, ch1_vec, ch2_vec, det1_loc, det2_loc, v, f, thetas=None,
+        phis=None, epsilon=0.1, alpha=1000):
+    if string is 'r':
+        g1, p, t =  orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon,
+                alpha, v, f, thetas=thetas, phis=phis)
+        return g1.reshape((g1.size,1)), g1.shape
+    if string is 's':
+        g1, g2, p, t =  orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
+                v, f, thetas=thetas, phis=phis)
+        return g1.reshape((g1.size,1)), g2.reshape((g2.size,1)), g1.shape, g2.shape
+    if string is 'p':
+        g1, p, t = orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
+                 v, f, thetas=thetas, phis=phis)
+        return g1.reshape((g1.size,1)), g1.shape
 

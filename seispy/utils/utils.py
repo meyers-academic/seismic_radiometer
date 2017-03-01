@@ -8,6 +8,9 @@ from gwpy.timeseries import TimeSeries
 from seispy.trace import Trace
 import astropy.units as u
 import os
+from lal import CreateREAL8FrequencySeries
+from lal import CreateREAL8TimeSeries
+from lalsimulation import SimNoise
 
 
 def set_channel_vector(letter):
@@ -237,7 +240,6 @@ def gaussian_noise2(asd_amp, sample_rate, duration, segdur=None, name=None):
 #    os.system('rm tmp.txt tmp2.txt')
     return Trace(final_dat.value, times=final_dat.times,
             sample_rate=final_dat.sample_rate.value, unit=u.m,name=name)
-
 
 def gaussian_noise(psd_amp, sample_rate, duration, segdur=None, name=None):
     if segdur is None:

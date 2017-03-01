@@ -8,10 +8,10 @@ import numpy as np
 
 # params for now
 conf=0.90
-duration = 200*8
+duration = 200*4
 amplitude = 1e-6
 segdur=200
-noise_amplitude=4e-6
+noise_amplitude=1e-6
 phis_inj = np.pi/180 * np.array([180])
 thetas_inj = np.pi/180 * np.array([30])
 freqs = np.array([1])

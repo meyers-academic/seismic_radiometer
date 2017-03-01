@@ -3,9 +3,12 @@ from scipy.sparse.linalg import lsqr
 from collections import OrderedDict
 from ..utils import *
 import astropy.units as u
+from ..noise import gaussian
 from ..trace import Trace
+from ..recoverymap import RecoveryMap
 import numpy as np
 from scipy.sparse.linalg import lsqr
+from gwpy.frequencyseries import FrequencySeries
 
 class Seismometer(OrderedDict):
     """
@@ -118,7 +121,7 @@ class SeismometerArray(OrderedDict):
             else:
                 # most of our noise spectra will be one-sided, but this is a real
                 # signal, so we multiply this by two.
-                signal = amplitude * np.cos(2*np.pi*frequency*times + phase)
+                signal = amplitude * np.sin(2*np.pi*frequency*times + phase)
             # impose time delay
             amp = np.roll(signal,delaySamps)[:Nsamps]
             data[key]['HHE'] = Trace(src_dir[0]*amp, sample_rate=Fs,
@@ -188,7 +191,7 @@ class SeismometerArray(OrderedDict):
         te = max(-tau_round)
         Nsamps = duration * Fs
         final_times = np.arange(0, duration, 1/Fs)
-        times = np.arange(0, ts + duration + te, 1/Fs)
+        times = np.arange(0, np.abs(ts) + duration + te, 1/Fs)
         # shift backward in time
         times += ts
         data = SeismometerArray()
@@ -355,19 +358,22 @@ class SeismometerArray(OrderedDict):
         return data
 
     @classmethod
-    def _gen_white_gaussian_noise(cls, station_names, psd_amp, sample_rate, duration, segdur=None):
+    def _gen_white_gaussian_noise(cls, station_names, psd_amp, sample_rate,
+            duration, segdur=None, seed=None):
         if segdur is None:
             segdur=duration
         data = SeismometerArray()
+        psd = FrequencySeries(psd_amp * np.ones(100000), df=1./(segdur))
+        psd[0]=0
         for station in station_names:
             data[station] = Seismometer.initialize_all_good(duration=segdur)
             # set data channels to white noise
-            data[station]['HHE'] = gaussian_noise2(psd_amp, sample_rate, duration,
-                    segdur=segdur, name=station)
-            data[station]['HHN'] = gaussian_noise2(psd_amp, sample_rate, duration,
-                    segdur=segdur, name=station)
-            data[station]['HHZ'] = gaussian_noise2(psd_amp, sample_rate, duration,
-                    segdur=segdur, name=station)
+            data[station]['HHE'] = gaussian.noise_from_psd(duration,
+                    sample_rate, psd, seed=seed, name=station, unit=u.m)
+            data[station]['HHN'] = gaussian.noise_from_psd(duration,
+                    sample_rate, psd, seed=seed, name=station, unit=u.m)
+            data[station]['HHZ'] = gaussian.noise_from_psd(duration,
+                    sample_rate, psd, seed=seed, name=station, unit=u.m)
         return data
 
     def get_locations(self):
@@ -377,7 +383,7 @@ class SeismometerArray(OrderedDict):
                     self[seismometer]['HHE'].location
         return location_dir
 
-    def add_white_noise(self, psd_amp, segdur=None):
+    def add_white_noise(self, psd_amp, segdur=None, seed=0):
         """
         Add some white noise to your seismometer array.
         Each channel with have a different noise realization
@@ -389,7 +395,7 @@ class SeismometerArray(OrderedDict):
         Fs = self[sensors[0]]['HHE'].sample_rate.value
         duration = self[sensors[0]]['HHE'].size / Fs
         WN_array = SeismometerArray._gen_white_gaussian_noise(sensors, psd_amp,
-                Fs, duration, segdur=segdur)
+                Fs, duration, segdur=segdur, seed=seed)
         self._add_another_seismometer_array(WN_array)
 
     def _add_another_seismometer_array(self, other):
@@ -735,3 +741,127 @@ class SeismometerArray(OrderedDict):
         final_map_pol1 = final_map[:gamma1.size]
         final_map_pol2 = final_map[gamma1.size:]
         return final_map_pol1, final_map_pol2, phis, thetas
+
+    def recovery_matrices(self, rec_str, station_locs, recovery_freq,
+            v_list, autocorrelations=True, epsilon=0.1, alpha=1000,
+            channels=None, phis=None, thetas=None, fftlength=2, overlap=1,
+            nproc=1,iter_lim=1000, atol=1e-6, btol=1e-6):
+        """
+        Recover everything or anything
+
+        Parameters
+        ----------
+        recovery_freq : `float`
+            frequency of recovery
+        autocorrelations : `bool`
+            Would you like to use autocorrelations in recovery?
+        channels : `list`
+            list of channels of data to use
+
+        Returns
+        -------
+        GG : `numpy.ndarray`
+            :math:`\gamma^T * \gamma`
+        GY : `numpy.ndarray`
+            :math:`\gamma \hat Y`
+        gamma_shape : `tuple`
+            final shape to use to reshape matrices
+            after solutions
+        gamma1_shape : `tuple`
+            final shape to use to reshape matrices
+            after solutions
+        gamma2_shape : `tuple`
+            final shape to use to reshape matrices
+            after solutions
+        """
+        stations = self.keys()
+        if channels is None:
+            channels = ['HHE','HHN','HHZ']
+        First = True
+        for ii,station1 in enumerate(stations):
+            for jj,station2 in enumerate(stations):
+                for kk,chan1 in enumerate(channels):
+                    for ll,chan2 in enumerate(channels):
+                        if jj<ii:
+                            # we don't double count stations
+                            continue
+                        if ll < kk:
+                            # don't double count channels
+                            continue
+                        else:
+                            P12 =\
+                            self[station1][channels[kk]].csd_spectrogram(self[station2][channels[ll]],
+                                    stride=fftlength,
+                                    window='hann',overlap=overlap, nproc=nproc)
+                            cp = (P12).mean(0)
+                            idx = np.where(cp.frequencies.value==recovery_freq)
+                            p12 = cp[idx[0]-1:idx[0]+2].sum()
+                            g = []
+                            shapes = []
+                            for rec, v in zip(rec_str, v_list):
+                                if rec is 's':
+                                    g1, g2, g1_s, g2_s = orf_picker(rec, set_channel_vector(channels[kk]),
+                                        set_channel_vector(channels[ll]),station_locs[station1],
+                                        station_locs[station2], v,
+                                        recovery_freq, thetas=thetas, phis=phis,
+                                                 epsilon=epsilon, alpha=alpha)
+                                    shapes.append(g1_s)
+                                    shapes.append(g2_s)
+                                    if len(g) > 0:
+                                        g = np.vstack((g, g1, g2))
+                                    else:
+                                        g = np.vstack((g1, g2))
+                                else:
+                                    g1, g_s = orf_picker(rec, set_channel_vector(channels[kk]),
+                                        set_channel_vector(channels[ll]),station_locs[station1],
+                                        station_locs[station2],
+                                        v,recovery_freq, thetas=thetas, phis=phis,
+                                        epsilon=epsilon, alpha=alpha)
+                                    try:
+                                        g = np.vstack((g, g1))
+                                    except ValueError:
+                                        g = g1
+                                    shapes.append(g_s)
+#                            if chan2=='HHZ' and chan1!=chan2:
+#                                print chan1
+#                                print chan2
+#                                print g[0], p12
+                            if First:
+                                GG = np.dot(np.conj(g), np.transpose(g))
+                                GY = np.conj(g)*p12
+                                First = 0
+                            else:
+                                GG += np.dot(np.conj(g), np.transpose(g))
+                                GY += np.conj(g)*p12
+        S = lsqr(np.real(GG), np.real(GY.value), iter_lim=iter_lim, atol=atol,
+                btol=btol)
+        maps = {}
+        idx_low = 0
+        if thetas is None:
+            thetas = np.arange(3,180,6) * np.pi / 180
+        if phis is None:
+            phis = np.arange(3,360,6) * np.pi / 180
+        for ii, rec in enumerate(rec_str):
+            if rec is 's':
+                length = shapes[ii][0] * shapes[ii][1]
+                maps['s1'] =\
+                        RecoveryMap(S[0].reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),
+                                thetas, phis, 's1')
+                idx_low += length
+                maps['s2'] =\
+                        RecoveryMap(S[0].reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),
+                                thetas, phis, 's2')
+            else:
+                length = shapes[ii][0] * shapes[ii][1]
+                maps[rec] =\
+                    RecoveryMap(S[0].reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),
+                            thetas, phis, rec)
+                idx_low += length
+        print 'Stopped at iteration number ' + str(S[2])
+        if S[1]==1:
+            print "We've found an exact solution"
+        if S[1]==2:
+            print "We found an approximate solution"
+        print 'Converged to a relative residual of '+str(S[3] /
+                np.sqrt((np.abs(GY.value)**2).sum()))
+        return maps, phis, thetas
