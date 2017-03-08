@@ -794,7 +794,8 @@ class SeismometerArray(OrderedDict):
                                     stride=fftlength,
                                     window='hann',overlap=overlap, nproc=nproc)
                             cp = (P12).mean(0)
-                            idx = np.where(cp.frequencies.value==recovery_freq)
+                            idx =\
+                                np.where(cp.frequencies.value==float(recovery_freq))
                             p12 = cp[idx[0]-1:idx[0]+2].sum()
                             g = []
                             shapes = []
@@ -803,7 +804,7 @@ class SeismometerArray(OrderedDict):
                                     g1, g2, g1_s, g2_s = orf_picker(rec, set_channel_vector(channels[kk]),
                                         set_channel_vector(channels[ll]),station_locs[station1],
                                         station_locs[station2], v,
-                                        recovery_freq, thetas=thetas, phis=phis,
+                                        float(recovery_freq), thetas=thetas, phis=phis,
                                                  epsilon=epsilon, alpha=alpha)
                                     shapes.append(g1_s)
                                     shapes.append(g2_s)
@@ -815,17 +816,13 @@ class SeismometerArray(OrderedDict):
                                     g1, g_s = orf_picker(rec, set_channel_vector(channels[kk]),
                                         set_channel_vector(channels[ll]),station_locs[station1],
                                         station_locs[station2],
-                                        v,recovery_freq, thetas=thetas, phis=phis,
+                                        v,float(recovery_freq), thetas=thetas, phis=phis,
                                         epsilon=epsilon, alpha=alpha)
                                     try:
                                         g = np.vstack((g, g1))
                                     except ValueError:
                                         g = g1
                                     shapes.append(g_s)
-#                            if chan2=='HHZ' and chan1!=chan2:
-#                                print chan1
-#                                print chan2
-#                                print g[0], p12
                             if First:
                                 GG = np.dot(np.conj(g), np.transpose(g))
                                 GY = np.conj(g)*p12
@@ -857,11 +854,12 @@ class SeismometerArray(OrderedDict):
                     RecoveryMap(S[0].reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),
                             thetas, phis, rec)
                 idx_low += length
-        print 'Stopped at iteration number ' + str(S[2])
-        if S[1]==1:
-            print "We've found an exact solution"
-        if S[1]==2:
-            print "We found an approximate solution"
-        print 'Converged to a relative residual of '+str(S[3] /
-                np.sqrt((np.abs(GY.value)**2).sum()))
+
+        #print 'Stopped at iteration number ' + str(S[2])
+        #if S[1]==1:
+        #    print "We've found an exact solution"
+        #if S[1]==2:
+        #    print "We found an approximate solution"
+        #print 'Converged to a relative residual of '+str(S[3] /
+        #        np.sqrt((np.abs(GY.value)**2).sum()))
         return maps, phis, thetas

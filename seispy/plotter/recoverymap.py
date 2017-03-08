@@ -44,8 +44,8 @@ class RecoveryMapPlot(Plot):
         try:
             conf = kwargs.pop('conf')
         except KeyError:
-            conf = 0.90
-#        conf_map = recovery_map.get_contour(conf)
+            conf = 0.5
+        conf_map, phil, thetal = recovery_map.get_contour(conf)
         self.recovery_map = recovery_map
         ax = self.gca()
         ax.add_map(recovery_map)
@@ -57,6 +57,5 @@ class RecoveryMapPlot(Plot):
         ax.tick_params(axis='x',colors='white')
         cbar = self.add_colorbar(label=r'amplitude [$\textrm{m}^2$]')
         cbar.ax.tick_params(labelsize=10)
-#        pyplot.contour(recovery_map.phis - np.pi - dphi/2, np.pi / 2 - recovery_map.thetas + dtheta / 2, conf_map.T, colors='k',
-#            linewidth=4, levels=[0])
+        ax.contour(recovery_map.phis - np.pi - dphi/2, np.pi / 2 - recovery_map.thetas + dtheta / 2, conf_map.T, colors='k', linewidth=4, levels=[0])
 
