@@ -1,5 +1,4 @@
 from gwpy.timeseries import TimeSeries
-from seispy.spec import Spec
 import numpy as np
 import scipy
 import glob
@@ -147,63 +146,63 @@ class Trace(TimeSeries):
             TS.__dict__ = self.copy_metadata()
             return TS.detrend()
 
-    def fft_new(self, **kwargs):
-        """
-        Calculates fft (keeps negative frequencies as well...
-        we need them for ambient noise cross correlation).
-
-        NOTE: This is renormalized to be the correct spectrum,
-        however that means that you cannot just use
-        numpy.fft.ifft(self.fft_new(window=None))
-        to get back the original timeseries.
-
-        >>> data1 = read_frame(frame, channel)
-        >>> TS_old = np.fft.ifft(data1.size * data1.fft_new(window=None))
-        >>> data1 == TS_old
-
-        self.fft() uses the same normalization, but does not offer
-        whitening and windowing like this function does.
-
-        can do whitening if you want
-
-        Parameters:
-        -----------
-        whiten: `bool`, optional
-            Whitens spectrum on both sides.
-
-        Returns:
-        --------
-        fft : `Spec`, fft
-            Whitened if wanted
-        """
-        kwargs = self._check_fft_kwargs(kwargs)
-
-        # whiten
-        # if kwargs['whiten']:
-        #     Nsecs = self.value.size / self.sample_rate.value
-        #     TS = self.whiten(1. / 8 * Nsecs, 1. / 16 * Nsecs)
-        # else:
-        TS = self
-        # window and fft...
-        if kwargs['window'] == 'hanning':
-            window = np.hanning(TS.value.size)
-            fft = np.fft.fft(
-                TS.value * window) / (TS.size)
-            freqs = np.fft.fftfreq(
-                TS.value.size, d=(1. / TS.sample_rate.value))
-        else:
-            fft = np.fft.fft(
-                TS.value) / TS.size
-            freqs = np.fft.fftfreq(
-                TS.value.size, d=(1. / TS.sample_rate.value))
-        # put things in the right order
-        fft = Spec(
-            fft, f0=freqs[0], df=(freqs[1] - freqs[0]),
-            name=self.name, epoch=self.epoch)
-        if kwargs['whiten']:
-            fft = fft.whiten(width=1)
-
-        return fft
+    # def fft_new(self, **kwargs):
+    #     """
+    #     Calculates fft (keeps negative frequencies as well...
+    #     we need them for ambient noise cross correlation).
+    #
+    #     NOTE: This is renormalized to be the correct spectrum,
+    #     however that means that you cannot just use
+    #     numpy.fft.ifft(self.fft_new(window=None))
+    #     to get back the original timeseries.
+    #
+    #     >>> data1 = read_frame(frame, channel)
+    #     >>> TS_old = np.fft.ifft(data1.size * data1.fft_new(window=None))
+    #     >>> data1 == TS_old
+    #
+    #     self.fft() uses the same normalization, but does not offer
+    #     whitening and windowing like this function does.
+    #
+    #     can do whitening if you want
+    #
+    #     Parameters:
+    #     -----------
+    #     whiten: `bool`, optional
+    #         Whitens spectrum on both sides.
+    #
+    #     Returns:
+    #     --------
+    #     fft : `Spec`, fft
+    #         Whitened if wanted
+    #     """
+    #     kwargs = self._check_fft_kwargs(kwargs)
+    #
+    #     # whiten
+    #     # if kwargs['whiten']:
+    #     #     Nsecs = self.value.size / self.sample_rate.value
+    #     #     TS = self.whiten(1. / 8 * Nsecs, 1. / 16 * Nsecs)
+    #     # else:
+    #     TS = self
+    #     # window and fft...
+    #     if kwargs['window'] == 'hanning':
+    #         window = np.hanning(TS.value.size)
+    #         fft = np.fft.fft(
+    #             TS.value * window) / (TS.size)
+    #         freqs = np.fft.fftfreq(
+    #             TS.value.size, d=(1. / TS.sample_rate.value))
+    #     else:
+    #         fft = np.fft.fft(
+    #             TS.value) / TS.size
+    #         freqs = np.fft.fftfreq(
+    #             TS.value.size, d=(1. / TS.sample_rate.value))
+    #     # put things in the right order
+    #     fft = Spec(
+    #         fft, f0=freqs[0], df=(freqs[1] - freqs[0]),
+    #         name=self.name, epoch=self.epoch)
+    #     if kwargs['whiten']:
+    #         fft = fft.whiten(width=1)
+    #
+    #     return fft
 
     def _check_fft_kwargs(self, kwargs):
         try:
