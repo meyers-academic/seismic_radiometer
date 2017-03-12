@@ -1,6 +1,5 @@
 from __future__ import division
 import numpy as np
-import time
 from scipy.interpolate import interp1d
 from scipy.special import sph_harm
 from .utils import calc_travel_time
@@ -145,9 +144,12 @@ def orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetas=None,
     -------
     gamma : `numpy.ndarray`
         overlap reduction function for p-waves
-    ff : `numpy.ndarray`
-        frequency array
+    phis : `numpy.ndarray`
+        phi values
+    thetas : `numpy.ndarray`
+        theta values
     """
+
     # get separation vector
     x_vec = np.array(det1_loc) - np.array(det2_loc)
     # make it a unit vector
@@ -196,8 +198,10 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
         overlap reduction function for s-waves, pol1
     gamma2 : `numpy.ndarray`
         overlap reduction function for s-waves, pol 2
-    ff : `numpy.ndarray`
-        frequency array
+    phis : `numpy.ndarray`
+        phi values
+    thetas : `numpy.ndarray`
+        theta values
     """
     # get separation vector
     x_vec = np.array(det1_loc) - np.array(det2_loc)
@@ -258,8 +262,10 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, 
     -------
     gamma1 : `numpy.ndarray`
         overlap reduction function for s-waves, pol1
-    ff : `numpy.ndarray`
-        frequency array
+    phis : `numpy.ndarray`
+        phis array
+    thetas : `numpy.ndarray`
+        theta values
     """
     # get separation vector
     x_vec = np.array(det1_loc) - np.array(det2_loc)

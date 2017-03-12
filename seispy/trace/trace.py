@@ -28,7 +28,7 @@ class Trace(TimeSeries):
 
         # class assignment stuff...
         TS = Trace(arr)
-        TS.__dict__ = self.copy_metadata()
+#        TS.__dict__ = self.copy_metadata()
         return TS.detrend()
 
     def smooth(self, width=1):
@@ -59,7 +59,7 @@ class Trace(TimeSeries):
         # do convolution
         TS = np.convolve(TS, window / (2 * width), 'same')
         TS = Trace(TS)
-        TS.__dict__ = self.copy_metadata()
+#        TS.__dict__ = self.copy_metadata()
         return TS.detrend()
 
     def renormalization(self, Ns=None, type='water_level'):
@@ -143,7 +143,7 @@ class Trace(TimeSeries):
         elif type == 'bit':
             TS = np.sign(self.detrend())
             TS = Trace(TS)
-            TS.__dict__ = self.copy_metadata()
+#            TS.__dict__ = self.copy_metadata()
             return TS.detrend()
 
     # def fft_new(self, **kwargs):
@@ -473,12 +473,8 @@ def read_frame(frame, channel, st=None, et=None, cfac=1.589459e-9):
 
     if st is not None and et is not None:
         d1 = cfac * Trace.read(frame, channel, st, et).detrend()
-        d2 = TimeSeries.read(frame, channel, st, et, format='lalframe')
     else:
         d1 = cfac * Trace.read(frame, channel).detrend()
-        d2 = TimeSeries.read(frame, channel, format='lalframe')
-    d1 = Trace(d1.value)
-    d1.__dict__ = d2.copy_metadata()
     d1.location = d1.get_location()
     return d1
 
