@@ -301,7 +301,7 @@ def get_homestake_channels(type):
      VTW - main system opto inputs
      note: all V** channels are updated every 10 seconds
     """
-
+    fast_chans = ['HHE','HHN','HHZ']
     data_chan = ['HHE','HHN','HHZ','LHE','LHN','LHZ']
     status_chan = ['LCE','LCQ','LPL','LCL','LCC','QBD','QBP','QDG','QDL',
             'QDR','QEF','QG1','QGD','QID','QLD','QPD','QRD','QRT',
@@ -317,6 +317,8 @@ def get_homestake_channels(type):
         chan_list = status_chan
     elif (type.lower() == 'useful'):
         chan_list = useful_chan
+    elif (type.lower() == 'fast_chans'):
+        chan_list = fast_chans
     else:
         raise ValueError('type should be \'all\' or \'data\' or \'status\' or \'useful\'.')
 
