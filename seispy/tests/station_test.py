@@ -2,11 +2,8 @@ from __future__ import division
 import matplotlib
 matplotlib.use('agg')
 import unittest
-import matplotlib.pyplot as plt
 from ..station import *
 import numpy.testing as npt
-from gwpy.frequencyseries import FrequencySeries
-import numpy as np
 
 class TestStation(unittest.TestCase):
     def test_spiral(self):
