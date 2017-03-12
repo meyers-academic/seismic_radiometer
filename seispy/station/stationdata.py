@@ -4,16 +4,42 @@ from collections import OrderedDict
 from ..utils import *
 import astropy.units as u
 from ..noise import gaussian
-from ..trace import Trace
+from ..trace import Trace, fetch
 from ..recoverymap import RecoveryMap
 import numpy as np
 from scipy.sparse.linalg import lsqr
 from gwpy.frequencyseries import FrequencySeries
+from .station import homestake
 
 class Seismometer(OrderedDict):
     """
     Station data
     """
+    @classmethod
+    def fetch_data(cls, station_name, st, et, framedir='./', chans_type='useful',
+        location=[0,0,0]):
+        """
+        fetch data for this seismometer
+
+        Parameters
+        ----------
+        st : `int`
+            start time
+        et : `int`
+            end time
+        framedir : TODO, optional
+
+        Returns
+        -------
+        TODO
+
+        """
+        seismometer = cls()
+        chans = get_homestake_channels(chans_type)
+        for chan in chans:
+            seismometer[chan] = fetch(st, et, station_name+':'+chan, framedir=framedir)
+        return seismometer
+
     @classmethod
     def initialize_all_good(cls, duration, chans_type='useful', start_time=0,
             name='seismometer', location=[0,0,0]):
@@ -45,34 +71,65 @@ class Seismometer(OrderedDict):
         seismometer['HHZ'] = Trace(np.zeros(int(duration*100)),
                 sample_rate=100*u.Hz, epoch=start_time, name=name+' Vertical',
                 unit=u.m)
-        seismometer['LCQ'] = Trace(100 * np.ones(int(duration*1)),
-                sample_rate=1*u.Hz, epoch=start_time, name=name+' Clock Quality')
-        seismometer['LCE'] = Trace(np.zeros(int(duration*1)),
-                sample_rate=1*u.Hz, epoch=start_time, name=name+' Clock Phase\
-                Error')
-        seismometer['VM1'] = Trace(np.zeros(int(duration*0.1)),
-                sample_rate=0.1*u.Hz, epoch=start_time, name=name+' Mass\
-                Position Channel 1')
-        seismometer['VM2'] = Trace(np.zeros(int(duration*0.1)),
-                sample_rate=0.1*u.Hz, epoch=start_time, name=name+' Mass\
-                Position Channel 2')
-        seismometer['VM3'] = Trace(np.zeros(int(duration*0.1)),
-                sample_rate=0.1*u.Hz, epoch=start_time, name=name+' Mass\
-                Position Channel 3')
-        seismometer['VEP'] = Trace(13 * np.ones(int(duration*0.1)),
-                sample_rate=0.1*u.Hz, epoch=start_time, name=name+' System\
-                Voltage')
-        seismometer['VKI'] = Trace(np.zeros(int(duration*0.1)),
-                sample_rate=0.1*u.Hz, epoch=start_time, name=name+' System\
-                temperature')
+        if chans_type=='fast_chans':
+            for chan in seismometer.keys():
+                seismometer[chan].location = location
+            return seismometer
+        else:
+            seismometer['LCQ'] = Trace(100 * np.ones(int(duration*1)),
+                    sample_rate=1*u.Hz, epoch=start_time, name=name+' Clock Quality')
+            seismometer['LCE'] = Trace(np.zeros(int(duration*1)),
+                    sample_rate=1*u.Hz, epoch=start_time, name=name+' Clock Phase\
+                    Error')
+            seismometer['VM1'] = Trace(np.zeros(int(duration*0.1)),
+                    sample_rate=0.1*u.Hz, epoch=start_time, name=name+' Mass\
+                    Position Channel 1')
+            seismometer['VM2'] = Trace(np.zeros(int(duration*0.1)),
+                    sample_rate=0.1*u.Hz, epoch=start_time, name=name+' Mass\
+                    Position Channel 2')
+            seismometer['VM3'] = Trace(np.zeros(int(duration*0.1)),
+                    sample_rate=0.1*u.Hz, epoch=start_time, name=name+' Mass\
+                    Position Channel 3')
+            seismometer['VEP'] = Trace(13 * np.ones(int(duration*0.1)),
+                    sample_rate=0.1*u.Hz, epoch=start_time, name=name+' System\
+                    Voltage')
+            seismometer['VKI'] = Trace(np.zeros(int(duration*0.1)),
+                    sample_rate=0.1*u.Hz, epoch=start_time, name=name+' System\
+                    temperature')
         # set location
-        for chan in seismometer.keys():
-            seismometer[chan].location = location
+            for chan in seismometer.keys():
+                seismometer[chan].location = location
         return seismometer
 
 class SeismometerArray(OrderedDict):
     """
     Data object for storing data for a station"""
+    @classmethod
+    def fetch_data(cls, st, et, framedir='./', chans_type='useful'):
+        """TODO: Docstring for fetch_data.
+
+        Parameters
+        ----------
+        st : `int`
+            start time
+        et : `int`
+            end time
+        framedir : `string`, optional
+            top level frame directory
+        chans_type : `type of chans to load`, optional
+
+        Returns
+        -------
+        seismometer_array : :class:`seispy.station.stationdata.SeismometerArray`
+            seismometer array
+        """
+        arr = cls.initialize_all_good(homestake(), et-st,
+                chans_type=chans_type, start_time=st)
+        for station in arr.keys():
+            arr[station] = Seismometer.fetch_data(station, st, et,
+                    framedir=framedir, chans_type=chans_type)
+        return arr
+
     @classmethod
     def _gen_pwave(cls, stations, amplitude, phi, theta, frequency, duration, Fs=100, c=3000,
         noise_amp=0, phase=0, segdur=None):
@@ -219,8 +276,7 @@ class SeismometerArray(OrderedDict):
         return data
 
     @classmethod
-    def _gen_rwave(cls, stations, amplitude, phi, theta, epsilon, alpha, frequency, duration, Fs=100, c=3000,
-        noise_amp=0, phase=0, segdur=None):
+    def _gen_rwave(cls, stations, amplitude, phi, theta, epsilon, alpha, frequency, duration, Fs=100, c=3000, noise_amp=0, phase=0, segdur=None):
         """
         simulate p-wave in a certain direction
 
@@ -794,7 +850,8 @@ class SeismometerArray(OrderedDict):
                                     stride=fftlength,
                                     window='hann',overlap=overlap, nproc=nproc)
                             cp = (P12).mean(0)
-                            idx = np.where(cp.frequencies.value==recovery_freq)
+                            idx =\
+                                np.where(cp.frequencies.value==float(recovery_freq))
                             p12 = cp[idx[0]-1:idx[0]+2].sum()
                             g = []
                             shapes = []
@@ -803,7 +860,7 @@ class SeismometerArray(OrderedDict):
                                     g1, g2, g1_s, g2_s = orf_picker(rec, set_channel_vector(channels[kk]),
                                         set_channel_vector(channels[ll]),station_locs[station1],
                                         station_locs[station2], v,
-                                        recovery_freq, thetas=thetas, phis=phis,
+                                        float(recovery_freq), thetas=thetas, phis=phis,
                                                  epsilon=epsilon, alpha=alpha)
                                     shapes.append(g1_s)
                                     shapes.append(g2_s)
@@ -815,17 +872,13 @@ class SeismometerArray(OrderedDict):
                                     g1, g_s = orf_picker(rec, set_channel_vector(channels[kk]),
                                         set_channel_vector(channels[ll]),station_locs[station1],
                                         station_locs[station2],
-                                        v,recovery_freq, thetas=thetas, phis=phis,
+                                        v,float(recovery_freq), thetas=thetas, phis=phis,
                                         epsilon=epsilon, alpha=alpha)
                                     try:
                                         g = np.vstack((g, g1))
                                     except ValueError:
                                         g = g1
                                     shapes.append(g_s)
-#                            if chan2=='HHZ' and chan1!=chan2:
-#                                print chan1
-#                                print chan2
-#                                print g[0], p12
                             if First:
                                 GG = np.dot(np.conj(g), np.transpose(g))
                                 GY = np.conj(g)*p12
@@ -857,11 +910,12 @@ class SeismometerArray(OrderedDict):
                     RecoveryMap(S[0].reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),
                             thetas, phis, rec)
                 idx_low += length
-        print 'Stopped at iteration number ' + str(S[2])
-        if S[1]==1:
-            print "We've found an exact solution"
-        if S[1]==2:
-            print "We found an approximate solution"
-        print 'Converged to a relative residual of '+str(S[3] /
-                np.sqrt((np.abs(GY.value)**2).sum()))
+
+        #print 'Stopped at iteration number ' + str(S[2])
+        #if S[1]==1:
+        #    print "We've found an exact solution"
+        #if S[1]==2:
+        #    print "We found an approximate solution"
+        #print 'Converged to a relative residual of '+str(S[3] /
+        #        np.sqrt((np.abs(GY.value)**2).sum()))
         return maps, phis, thetas

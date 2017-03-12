@@ -1,0 +1,8 @@
+#! /usr/bin/python
+from seispy.engine import parse_command_line, main
+from seispy.seispy_io import read_config
+
+if __name__=="__main__":
+    args = parse_command_line()
+    params = read_config(args.config_file)
+    main(params)

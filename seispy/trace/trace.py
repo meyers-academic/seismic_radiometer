@@ -423,7 +423,7 @@ def fetch(st, et, channel, framedir='./'):
         # we want to load fst -> et
         fst = int(file.split('-')[-2])
         dur = int(file.split('-')[-1][:-4])
-        if st <= fst and et <= fst + dur:
+        if st <= fst and et <= fst + dur and et >= fst:
             val = read_frame(file, channel, st=fst, et=et)
             vals = np.hstack((vals, val.value))
         # start is after frame start, end is before frame end
@@ -443,9 +443,9 @@ def fetch(st, et, channel, framedir='./'):
             vals = np.hstack((vals, val.value))
         else:
             continue
-        TS = Trace(vals, x0=st, dx=val.dx, name=val.name, channel=val.channel)
-        loc = TS.get_location()
-        TS.location = loc
+    TS = Trace(vals, x0=st, dx=val.dx, name=val.name, channel=val.channel)
+    loc = TS.get_location()
+    TS.location = loc
     return TS
 
 
