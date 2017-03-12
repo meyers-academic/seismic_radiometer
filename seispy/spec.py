@@ -1,4 +1,4 @@
-from gwpy.spectrum import Spectrum
+from gwpy.frequencyseries import FrequencySeries
 import numpy as np
 
 

@@ -1,0 +1,133 @@
+#!/usr/bin/env python
+
+import optparse
+from glue import pipeline
+from gwpy.time import tconvert
+import os
+
+
+def parse_command_line():
+    """
+    parse_command_line
+    """
+    parser = optparse.OptionParser()
+    parser.add_option(
+        "--channel1", help="channel 1", default=None,
+        type=str, dest='channel1')
+    parser.add_option(
+        "--channel2", help="channel 2", default=None,
+        type=str, dest='channel2')
+    parser.add_option(
+        "-s", "--day1", dest='st',
+        help="start time string that can be read by gwpy.time.tconvert",
+        type=str, default=None)
+    parser.add_option(
+        "-n", "--num-days", dest='ndays', help="number of days", type=int,
+        default=None)
+    parser.add_option(
+        "--base-directory", default="/archive/frames/homestake/",
+        dest="directory", type=str, help="base frame directory")
+    parser.add_option(
+        "-o", "--output-directory", dest="outdir", type=str,
+        help="output top-level directory", default='./')
+    parser.add_option(
+        "--condor-dag-dir", default="./condor", type=str, dest='dagdir',
+        help='condor dag directory')
+    params, args = parser.parse_args()
+    return params
+
+
+params = parse_command_line()
+
+st = tconvert(params.st)
+
+try:
+    os.mkdir(params.dagdir)
+    os.mkdir('%s/%s' % (params.dagdir, 'err'))
+    os.mkdir('%s/%s' % (params.dagdir, 'out'))
+except OSError:
+    print '%s already exists' % params.dagdir
+
+datajob = pipeline.CondorDAGJob(
+    'vanilla', 'seispy_coherence')
+# collection job
+datajob2 = pipeline.CondorDAGJob(
+    'vanilla', 'seispy_coherence_collect_daily')
+dag = pipeline.CondorDAG(
+    '/usr1/%s/%s-%s-%d.log' % (os.environ['USER'], params.channel1,
+                               params.channel2, st))
+datajob.set_log_file('/usr1/%s/%s-%s-%d.log' % (os.environ['USER'],
+                                                params.channel1,
+                                                params.channel2, st))
+
+datajob2.set_log_file('/usr1/%s/%s-%s-%d.log' % (os.environ['USER'],
+                                                params.channel1,
+                                                params.channel2, st))
+# start time of everything
+day_st = st
+# needed to make parent for final job
+day_nodes = {}
+# create some nodes
+for day in range(params.ndays):
+    job = pipeline.CondorDAGJob('vanilla', 'seispy_coherence')
+    job.set_sub_file('%s-%s-%d-%d-days' % (params.channel1,
+                                           params.channel2, st, params.ndays))
+    job.set_stderr_file('%s/%d.err' % ('err', day + 1))
+    job.set_stdout_file('%s/%d.out' % ('out', day + 1))
+    job.set_log_file('%s-%s-%d.log' % (params.channel1,
+                                       params.channel2, st))
+    node = pipeline.CondorDAGNode(job)
+    node.add_macro('starttime', day_st)
+    node.add_macro('endtime', day_st + 86400)
+    node.add_macro('day', day + 1)
+    day_nodes[day] = node
+    dag.add_node(node)
+    day_st += 86400
+
+job = pipeline.CondorDAGJob('vanilla', 'seispy_coherence_collect_daily')
+job.set_sub_file('%s-%s-%d-%d-days_collect' % (params.channel1,
+                                               params.channel2, st,
+                                               params.ndays))
+job.set_stderr_file('%s/%s.err' % ('err', 'collect'))
+job.set_stdout_file('%s/%s.out' % ('out', 'collect'))
+job.set_log_file('%s-%s-%d.log' % (params.channel1,
+                                   params.channel2, st))
+node = pipeline.CondorDAGNode(job)
+node.add_macro('start',params.st)
+node.add_macro('ndays',params.ndays)
+for key in day_nodes.keys():
+    node.add_parent(day_nodes[key])
+dag.add_node(node)
+
+
+ARG = "--channel1 %s --channel2 %s -s $(starttime) -e $(endtime) -o %s --normalization-type 'water_level'" % (
+    params.channel1, params.channel2, params.outdir)
+ARG2 = "--channel1 %s --channel2 %s -s '$(start)' -n $(ndays) -o %s"% (
+    params.channel1, params.channel2, params.outdir)
+datajob.add_arg(ARG)
+datajob2.add_arg(ARG2)
+
+datajob.set_stderr_file('%s/$(day).err' % ('err'))
+datajob.set_stdout_file('%s/$(day).out' % ('out'))
+datajob.set_sub_file('%s/%s-%s-%d-%d-days' % (params.dagdir, params.channel1,
+                                              params.channel2, st, params.ndays))
+datajob.add_condor_cmd('getEnv', 'True')
+datajob.add_condor_cmd(
+    'accounting_group', 'ligo.prod.o1.sgwb.directional.stochastic')
+datajob.add_condor_cmd('accounting_group_user', 'patrick.meyers')
+datajob.write_sub_file()
+
+datajob2.set_stderr_file('%s/collect.err' % ('err'))
+datajob2.set_stdout_file('%s/collect.out' % ('out'))
+datajob2.set_sub_file('%s/%s-%s-%d-%d-days_collect' % (params.dagdir, params.channel1,
+                                                       params.channel2, st,
+                                                       params.ndays))
+datajob2.add_condor_cmd('getEnv', 'True')
+datajob2.add_condor_cmd(
+    'accounting_group', 'ligo.prod.o1.sgwb.directional.stochastic')
+datajob2.add_condor_cmd('accounting_group_user', 'patrick.meyers')
+datajob2.write_sub_file()
+
+dag.set_dag_file('%s/%s-%s-%d-%d-days' % (params.dagdir, params.channel1,
+                                          params.channel2, st, params.ndays))
+dag.write_dag()

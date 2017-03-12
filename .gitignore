@@ -1,6 +1,28 @@
-data/
-seispy.egg-info/
+*.egg-info/
 build/
 .egg
 *.pyc
 dist/
+*.hdf5
+condor/
+.*.swp
+/webpage
+
+
+# documentation
+docs/_build
+docs/_generated
+docs/lal*.tag
+docs/*.inv
+
+# accidental condor leftovers from testing
+*.dag*
+*.sub
+
+# notebook checkpoints
+.ipynb*/
+
+# version
+seispy/version.py
+
+.DS_Store

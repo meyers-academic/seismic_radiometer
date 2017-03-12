@@ -1,0 +1,77 @@
+#!/usr/bin/env python
+
+from seispy.trace import Trace
+from gwpy.timeseries import TimeSeries
+from gwpy.time import tconvert
+import optparse
+import numpy as np
+
+
+def parse_command_line():
+    """
+    parse_command_line
+    """
+    parser = optparse.OptionParser()
+    parser.add_option(
+        "--channel1", help="channel 1", default=None,
+        type=str, dest='channel1')
+    parser.add_option(
+        "--channel2", help="channel 2", default=None,
+        type=str, dest='channel2')
+    parser.add_option(
+        "-s", "--day1", dest='st', help="start time string that can be read by gwpy.time.tconvert",
+        type=str, default=None)
+    parser.add_option(
+        "-n", "--num-days", dest='ndays', help="number of days", type=int,
+        default=None)
+    parser.add_option(
+        "--base-directory", default="/archive/frames/homestake/",
+        dest="directory", type=str, help="base frame directory")
+    parser.add_option(
+        "-o", "--output-directory", dest="outdir", type=str,
+        help="output top-level directory", default='./')
+    parser.add_option(
+        "--condor-dag-dir", default="./condor", type=str, dest='dagdir',
+        help='condor dag directory')
+    params, args = parser.parse_args()
+    return params
+
+
+params = parse_command_line()
+
+st = tconvert(params.st)
+loaddays = 0
+idx = 0
+for day in range(params.ndays):
+    et = st + 86400
+    loadfile ='%s/%s/%s-%s-COHERENCE-%d-%d.hdf' %\
+                                       (params.outdir, 'COH-%s' % str(st)[0:5],
+                                       params.channel1, params.channel2, st, 
+                                       et - st)
+    try:
+        if idx == 0:
+            data = TimeSeries.read(loadfile, format='hdf5').detrend()
+        else:
+            temp = TimeSeries.read(loadfile, format='hdf5').detrend()
+            print temp
+            if np.all(np.isnan(temp.value)):
+                st += 86400
+                continue
+            else:
+                data += temp
+                data = data.detrend()
+                loaddays += 1
+                print data
+        st += 86400
+        idx += 1
+    except IOError:
+        print 'couldnt load %s' % loadfile
+        st += 86400
+        continue
+
+sttot = tconvert(params.st)
+data = data.detrend() / loaddays
+data.write('%s/%s-%s-COHERENCE-%d-%d.hdf' %
+           (params.outdir,
+            params.channel1, params.channel2, sttot,
+            et - sttot), format='hdf5')

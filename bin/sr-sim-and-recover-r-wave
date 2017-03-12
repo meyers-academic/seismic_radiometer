@@ -1,0 +1,53 @@
+#! /usr/bin/python
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
+from seispy.station.stationdata import SeismometerArray
+from seispy.station import StationArray, homestake, spiral
+import numpy as np
+
+# params for now
+duration = 20
+amplitude = 5e-6
+noise_amp = 1e-9
+epsilon = 0.1
+alpha=1000
+phis_inj = np.pi/180 * np.array([30])
+thetas_inj = np.pi/180 * np.array([90])
+freqs = np.array([1])
+
+stations = homestake()
+stations = spiral(12)
+maxelevation=0
+for station in stations:
+    if stations[station][2] > maxelevation:
+        maxelevation = stations[station][2]
+for station in stations:
+    stations[station][2] -= maxelevation
+    stations[station][2] = np.abs(stations[station][2])
+
+
+data = SeismometerArray.initialize_all_good(stations, duration)
+data.add_white_noise(noise_amp, segdur=20)
+for pp,tt,ff in zip(phis_inj, thetas_inj, freqs):
+    data.add_r_wave(amplitude, pp, tt, epsilon, alpha, ff, duration, c=2500)
+final_map_r, phis, thetas = data.r_wave_recovery_matrices(stations, epsilon,
+        alpha, freqs[0], vr=2500, fftlength=20, overlap=10)
+
+plt.figure()
+plt.subplot(111,projection='aitoff')
+plt.pcolormesh(phis-np.pi, thetas-np.pi/2, final_map_r.T * 0.05, cmap='Spectral_r')
+plt.colorbar(label=r'log10(power) [$\textrm{m}^2$]')
+plt.scatter(phis_inj, 0, s=64, alpha=0.5)
+plt.xlabel(r'$\phi$')
+plt.ylabel(r'$\theta$')
+plt.grid(True)
+plt.savefig('test_map_r_wave')
+plt.close()
+
+plt.figure()
+plt.plot(phis - np.pi, np.sum(final_map_r, axis=1).squeeze())
+plt.xlabel('$\phi$')
+plt.ylabel('PDF')
+plt.savefig('phi_posterior')
+plt.close()

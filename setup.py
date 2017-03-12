@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (C) Pat Meyers
+# Copyright (C) Patrick Meyers (2013)
 #
-# This file is part of seispy
+# This file is part of SeisMon
 #
 # SeisMon is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,13 +18,29 @@
 # You should have received a copy of the GNU General Public License
 # along with SeisMon.  If not, see <http://www.gnu.org/licenses/>
 
-"""Setup script for seispy
+"""Setup script for SeisMon
 """
 
 import glob
 import os.path
 from setuptools import (find_packages, setup)
+from setuptools.command.install import install
+from distutils.core import Extension
+from distutils.command.build import build
+import sys
 from utils import version
+import numpy
+class CustomBuild(build):
+    sub_commands = [
+        ('build_ext', build.has_ext_modules),
+        ('build_py', build.has_pure_modules),
+        ('build_clib', build.has_c_libraries),
+        ('build_scripts', build.has_scripts),
+    ]
+class CustomInstall(install):
+    def run(self):
+        self.run_command('build_ext')
+        self.do_egg_install()
 
 PACKAGENAME = 'seispy'
 
@@ -34,9 +50,9 @@ VERSION_PY = os.path.join(PACKAGENAME, 'version.py')
 vcinfo = version.GitStatus()
 vcinfo(VERSION_PY)
 
-DESCRIPTION = 'Seismic data processing tool kit based on GWpy'
+DESCRIPTION = 'Basketball data analysis'
 LONG_DESCRIPTION = ''
-AUTHOR = 'Pat Meyers'
+AUTHOR = 'Patrick Meyers'
 AUTHOR_EMAIL = 'patrick.meyers@ligo.org'
 LICENSE = 'GPLv3'
 
@@ -50,20 +66,25 @@ RELEASE = vcinfo.version != vcinfo.id and 'dev' not in VERSION
 packagenames = find_packages(exclude=['utils'])
 
 # find all scripts
+#sys.path.append(glob.glob('~/opt/seispy/lib/python2.7/site-packages/numpy/f2py/src/'))
 scripts = glob.glob('bin/*')
+#module1 = Extension('_lsqr', sources=['lsqr_wrap.c', 'seispy/clsqr2/lsqr.c',
+#    'seispy/clsqr2/lsqrblas.c'])
 
 setup(name=PACKAGENAME,
+      cmdclass={'build': CustomBuild, 'install': CustomInstall},
       version=VERSION,
       description=DESCRIPTION,
       scripts=scripts,
       packages=packagenames,
       ext_modules=[],
-      requires=['gwpy', 'obspy'],
+      requires=[],
       provides=[PACKAGENAME],
       author=AUTHOR,
       author_email=AUTHOR_EMAIL,
       license=LICENSE,
       long_description=LONG_DESCRIPTION,
       zip_safe=False,
+      test_suite='seispy.tests',
       use_2to3=True
       )
