@@ -1,15 +1,15 @@
 from __future__ import division
 from matplotlib import use
 use("agg")
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from gwpy.plotter.core import Plot
-from gwpy.plotter.decorators import auto_refresh
-import re
+# from gwpy.plotter.decorators import auto_refresh
+# import re
 import numpy as np
 from matplotlib import (pyplot, colors)
 from matplotlib.projections import register_projection
-from matplotlib.artist import allow_rasterization
-from matplotlib.cbook import iterable
+# from matplotlib.artist import allow_rasterization
+# from matplotlib.cbook import iterable
 from matplotlib.projections import AitoffAxes
 
 try:
