@@ -198,7 +198,7 @@ class SeismometerArray(OrderedDict):
         ts = min(-tau_round)
         te = max(-tau_round)
         times = np.arange(0, np.abs(ts) + duration + te, 1 / Fs)
-        Nsamps = duration * Fs
+        Nsamps = int(duration * Fs)
         # shift backward in time
         times += ts
         data = SeismometerArray()
@@ -348,7 +348,7 @@ class SeismometerArray(OrderedDict):
         ts = min(-tau_round)
         te = max(-tau_round)
         times = np.arange(0, np.abs(ts) + duration + te, 1 / Fs)
-        Nsamps = duration * Fs
+        Nsamps = int(duration * Fs)
         # shift backward in time
         times += ts
         data = SeismometerArray()
@@ -561,7 +561,7 @@ class SeismometerArray(OrderedDict):
                                                                              nproc=nproc)
                             cp = P12.mean(0)
                             idx = \
-                                np.where(cp.frequencies.value == float(recovery_freq))
+                                np.where(cp.frequencies.value == float(recovery_freq))[0]
                             p12 = cp[idx[0] - 1:idx[0] + 2].sum()
                             g = []
                             shapes = []
