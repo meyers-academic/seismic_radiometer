@@ -1,14 +1,17 @@
 from __future__ import division
-from matplotlib import use,rc
+from matplotlib import use, rc
+
 use('agg')
-rc('text',usetex=True)
+rc('text', usetex=True)
 import matplotlib.pyplot as plt
 from collections import OrderedDict
 import numpy as np
 
+
 class StationArray(OrderedDict):
     """
     Station array class. Inherits from dict"""
+
     def __init__(self):
         super(StationArray, self).__init__()
 
@@ -27,9 +30,9 @@ class StationArray(OrderedDict):
 
         """
         fig = plt.figure()
-        ax = fig.add_subplot(111,projection='3d')
-        for key in stations.keys():
-            ax.scatter(stations[key][0],stations[key][1],stations[key][2])
+        ax = fig.add_subplot(111, projection='3d')
+        for key in self.keys():
+            ax.scatter(self[key][0], self[key][1], self[key][2])
         ax.set_zlabel('Depth')
         ax.set_ylabel('North')
         ax.set_xlabel('East')
@@ -58,9 +61,10 @@ def spiral(N, radius=1000, height=100, n_per_turn=10, offset=0):
     """
     stations = StationArray()
     for ii in range(N):
-        stations[ii] = offset + radius * np.array([np.cos((1/n_per_turn)*2*np.pi*ii),
-            np.sin((1/n_per_turn)*2*np.pi*ii), ii*height/radius])
+        stations[ii] = offset + radius * np.array([np.cos((1 / n_per_turn) * 2 * np.pi * ii),
+                                                   np.sin((1 / n_per_turn) * 2 * np.pi * ii), ii * height / radius])
     return stations
+
 
 def homestake(keylist=None):
     """
@@ -99,21 +103,21 @@ def homestake(keylist=None):
                 'B4850': [598987.461619, 4911086.715912, 114.9],
                 'C4850': [599409.907522, 4911093.130999, 114.6],
                 'D4850': [599581.886292, 4911840.127688, 115.2]}
-    surface_list = ['DEAD','LHS','ORO','ROSS','RRDG','SHL','TPK','WTP','YATES']
-    ug_list = [] # all others
+    surface_list = ['DEAD', 'LHS', 'ORO', 'ROSS', 'RRDG', 'SHL', 'TPK', 'WTP', 'YATES']
+    ug_list = []  # all others
     for key in xyz_list.keys():
-        cont=0
+        cont = 0
         for t in surface_list:
-            if t==key:
-                cont=1
-        if cont==1:
+            if t == key:
+                cont = 1
+        if cont == 1:
             continue
         else:
             ug_list.append(key)
 
-    if isinstance(keylist,str):
+    if isinstance(keylist, str):
         if keylist.lower() == 'all':
-            keylist=xyz_list.keys()
+            keylist = xyz_list.keys()
         elif keylist.lower() == 'surface':
             keylist = surface_list
         elif keylist.lower() == 'underground':
@@ -121,5 +125,5 @@ def homestake(keylist=None):
     elif keylist is None:
         keylist = xyz_list.keys()
     for key in keylist:
-        stations[key]=xyz_list[key]
+        stations[key] = xyz_list[key]
     return stations

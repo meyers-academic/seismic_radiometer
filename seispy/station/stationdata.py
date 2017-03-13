@@ -68,7 +68,7 @@ class Seismometer(OrderedDict):
 
         Returns
         -------
-        seismometer : :class:`stationdata.Seismometer`
+        seismometer : :class:`seispy.station.stationdata.Seismometer`
             seismometer data with zeros initialized everywhere
 
         Initialize a seismometer with all good
