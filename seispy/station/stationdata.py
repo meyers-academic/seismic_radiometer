@@ -280,7 +280,7 @@ class SeismometerArray(OrderedDict):
         tau_round = np.round(taus * Fs) / Fs
         ts = min(-tau_round)
         te = max(-tau_round)
-        Nsamps = duration * Fs
+        Nsamps = int(duration * Fs)
         final_times = np.arange(0, duration, 1 / Fs)
         times = np.arange(0, np.abs(ts) + duration + te, 1 / Fs)
         # shift backward in time
