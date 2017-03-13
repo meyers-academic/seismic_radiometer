@@ -8,7 +8,7 @@ from ..recoverymap import RecoveryMap
 import numpy as np
 from scipy.sparse.linalg import lsqr
 from gwpy.frequencyseries import FrequencySeries
-from .station import homestake
+from .station import StationArray, homestake
 
 
 class Seismometer(OrderedDict):
@@ -170,7 +170,7 @@ class SeismometerArray(OrderedDict):
         ----------
         stations : `seispy.station.StationArray` or `OrderedDict`
             ordered dict of stations, channels, locations
-        amplitude : `int`
+        amplitude : `float`
             amplitude of pwave
         phi
         theta
@@ -384,7 +384,26 @@ class SeismometerArray(OrderedDict):
     def add_p_wave(self, amplitude, phi, theta, frequency,
                    duration, phase=0, Fs=100, c=5700):
         """
-        add a p wave to this data
+        Add s-wave to seismometer array's data. Updates seismometer array data in place.
+
+        Parameters
+        ----------
+        amplitude : `float`
+            amplitude of rayleigh wave
+        phi : `float`
+            phi for r-wave injection
+        theta : `float`
+            polar angle for r-wave injection
+        frequency : `float`
+            frequency of injected wave
+        duration : `float`
+            duration of injected wave
+        phase : `float`
+            phase of injected sine-wave
+        Fs : `float`, optional
+            sample rate of wave we're generating
+        c : `float`, optional
+            velocity of injected wave
         """
         locations = self.get_locations()
         p_data = SeismometerArray._gen_pwave(locations, amplitude, phi, theta,
@@ -395,38 +414,30 @@ class SeismometerArray(OrderedDict):
     def add_s_wave(self, amplitude, phi, theta, psi, frequency,
                    duration, phase=0, Fs=100, c=3000):
         """
-        simulate s-wave in a certain direction
+        Add s-wave to seismometer array's data. Updates seismometer array data in place.
 
         Parameters
         ----------
         amplitude : `float`
-            amplitude of input wave
+            amplitude of rayleigh wave
         phi : `float`
-            azimuth in radians
+            phi for r-wave injection
         theta : `float`
-            polar angle from north pole in radians
+            polar angle for r-wave injection
         psi : `float`
-            s-wave polarization angle from horizontal
-            E-N plane in radians
+            polarization angle
         frequency : `float`
-            frequency of source
+            frequency of injected wave
         duration : `float`
-            duration of signal to simulate
-        Fs : `float`, optional, default=100 Hz
-            sample rate (int preferred)
-        c : `float`, optional, default=3000 m/s
-            speed of wave
-        phase : `float`, optional, default=0
-            phase delay of wave in radians
-
-        Returns
-        -------
-        data : `dict`
-            2-layer dict with first keys as stations,
-            second keys as channels for each station.
-            Each entry is the data for that channel
-            for that station for a simulated wave.
+            duration of injected wave
+        phase : `float`
+            phase of injected sine-wave
+        Fs : `float`, optional
+            sample rate of wave we're generating
+        c : `float`, optional
+            velocity of injected wave
         """
+
         locations = self.get_locations()
         s_data = SeismometerArray._gen_swave(locations, amplitude, phi,
                                              theta, psi, frequency, duration, phase=phase, Fs=Fs, c=c
@@ -436,7 +447,31 @@ class SeismometerArray(OrderedDict):
     def add_r_wave(self, amplitude, phi, theta, epsilon, alpha, frequency,
                    duration, phase=0, Fs=100, c=200):
         """
-        add an r-wave to this data
+
+        Add rayleigh wave to seismometer array's data. Updates seismometer array data in place.
+
+        Parameters
+        ----------
+        amplitude : `float`
+            amplitude of rayleigh wave
+        phi : `float`
+            phi for r-wave injection
+        theta : `float`
+            polar angle for r-wave injection
+        epsilon : `float`
+            vertical to horizontal amplitude ratio
+        alpha : `float`
+            depth attenuation factor
+        frequency : `float`
+            frequency of injected wave
+        duration : `float`
+            duration of injected wave
+        phase : `float`
+            phase of injected sine-wave
+        Fs : `float`
+            sample rate of wave we're generating
+        c : `float`
+            velocity of injected wave
         """
         locations = self.get_locations()
         r_data = SeismometerArray._gen_rwave(locations, amplitude, phi,
@@ -474,7 +509,7 @@ class SeismometerArray(OrderedDict):
         return data
 
     def get_locations(self):
-        location_dir = OrderedDict()
+        location_dir = StationArray()
         for seismometer in self.keys():
             location_dir[seismometer] = \
                 self[seismometer]['HHE'].location
@@ -554,19 +589,25 @@ class SeismometerArray(OrderedDict):
                             # don't double count channels
                             continue
                         else:
+                            # get csd spectrogram
                             P12 = \
                                 self[station1][channels[kk]].csd_spectrogram(self[station2][channels[ll]],
                                                                              stride=fftlength,
                                                                              window='hann', overlap=overlap,
                                                                              nproc=nproc)
+                            # take mean across time
                             cp = P12.mean(0)
                             idx = \
                                 np.where(cp.frequencies.value == float(recovery_freq))[0]
+                            # add up the frequency bin we want and adjacent ones
+                            # to account for spectral leakage
                             p12 = cp[idx[0] - 1:idx[0] + 2].sum()
+                            # reset g
                             g = []
                             shapes = []
                             for rec, v in zip(rec_str, v_list):
                                 if rec is 's':
+                                    # get s orf
                                     g1, g2, g1_s, g2_s = orf_picker(rec, set_channel_vector(channels[kk]),
                                                                     set_channel_vector(channels[ll]),
                                                                     station_locs[station1],
@@ -575,21 +616,28 @@ class SeismometerArray(OrderedDict):
                                                                     epsilon=epsilon, alpha=alpha)
                                     shapes.append(g1_s)
                                     shapes.append(g2_s)
+                                    # append new, flattened, g onto the end
+                                    # of already generated on
                                     if len(g) > 0:
                                         g = np.vstack((g, g1, g2))
                                     else:
                                         g = np.vstack((g1, g2))
                                 else:
+                                    # get p or r orf
                                     g1, g_s = orf_picker(rec, set_channel_vector(channels[kk]),
                                                          set_channel_vector(channels[ll]), station_locs[station1],
                                                          station_locs[station2],
                                                          v, float(recovery_freq), thetas=thetas, phis=phis,
                                                          epsilon=epsilon, alpha=alpha)
+                                    # append new, flattened, g onto the
+                                    # end of the one we've generated
                                     try:
                                         g = np.vstack((g, g1))
                                     except ValueError:
                                         g = g1
                                     shapes.append(g_s)
+                            # generate or add to gammaT*gamma or gammaT*Y
+                            # vector
                             if First:
                                 GG = np.dot(np.conj(g), np.transpose(g))
                                 GY = np.conj(g) * p12
@@ -597,10 +645,13 @@ class SeismometerArray(OrderedDict):
                             else:
                                 GG += np.dot(np.conj(g), np.transpose(g))
                                 GY += np.conj(g) * p12
+        # run least squares solver
         S = lsqr(np.real(GG), np.real(GY.value), iter_lim=iter_lim, atol=atol,
                  btol=btol)
         maps = {}
         idx_low = 0
+        # separate result into proper maps
+        # with proper class
         if thetas is None:
             thetas = np.arange(3, 180, 6) * np.pi / 180
         if phis is None:

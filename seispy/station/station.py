@@ -2,7 +2,6 @@ from __future__ import division
 from matplotlib import use,rc
 use('agg')
 rc('text',usetex=True)
-from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from collections import OrderedDict
 import numpy as np
