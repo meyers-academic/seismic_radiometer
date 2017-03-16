@@ -33,6 +33,7 @@ env:
     - LIBFRAME_VERSION="8.20"
     - LDAS_TOOLS_VERSION="2.4.1"
     - NDS2_CLIENT_VERSION="0.10.4"
+    - LALSIM_VERSION="1.4.1"
     # tarballs
     - SWIG_="https://github.com/swig/swig/archive/rel-${SWIG_VERSION}.tar.gz"
     - FFTW="http://www.fftw.org/fftw-${FFTW_VERSION}.tar.gz"
@@ -41,6 +42,7 @@ env:
     - LAL="http://software.ligo.org/lscsoft/source/lalsuite/lal-${LAL_VERSION}.tar.gz"
     - LALFRAME="http://software.ligo.org/lscsoft/source/lalsuite/lalframe-${LALFRAME_VERSION}.tar.gz"
     - NDS2_CLIENT="http://software.ligo.org/lscsoft/source/nds2-client-${NDS2_CLIENT_VERSION}.tar.gz"
+    - LALSIM="http://software.ligo.org/lscsoft/source/lalsuite/lalsimulation-${LALSIM_VERSION}.tar.gz"
 
 
 before_install:
