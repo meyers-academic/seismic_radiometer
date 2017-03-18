@@ -9,6 +9,7 @@ import numpy as np
 from scipy.sparse.linalg import lsqr
 from gwpy.frequencyseries import FrequencySeries
 from .station import StationArray, homestake
+import geographiclib.geodesic as ggg
 
 
 class Seismometer(OrderedDict):
@@ -92,48 +93,91 @@ class Seismometer(OrderedDict):
         seismometer = Seismometer()
         seismometer['HHE'] = Trace(np.zeros(int(duration * 100)),
                                    sample_rate=100 * u.Hz, epoch=start_time, name=name + ' East',
-                                   unit=u.m)
+                                   unit=u.m, channel='%s:%s' % (name, 'HHE'))
         seismometer['HHN'] = Trace(np.zeros(int(duration * 100)),
                                    sample_rate=100 * u.Hz, epoch=start_time, name=name + ' North',
-                                   unit=u.m)
+                                   unit=u.m, channel='%s:%s' % (name, 'HHN'))
         seismometer['HHZ'] = Trace(np.zeros(int(duration * 100)),
                                    sample_rate=100 * u.Hz, epoch=start_time, name=name + ' Vertical',
-                                   unit=u.m)
+                                   unit=u.m, channel='%s:%s' % (name, 'HHZ'))
         if chans_type == 'fast_chans':
             for chan in seismometer.keys():
                 seismometer[chan].location = location
             return seismometer
         else:
             seismometer['LCQ'] = Trace(100 * np.ones(int(duration * 1)),
-                                       sample_rate=1 * u.Hz, epoch=start_time, name=name + ' Clock Quality')
+                                       sample_rate=1 * u.Hz, epoch=start_time, name=name + ' Clock Quality',
+                                       channel='%s:%s' % (name, 'LCQ'))
             seismometer['LCE'] = Trace(np.zeros(int(duration * 1)),
                                        sample_rate=1 * u.Hz, epoch=start_time, name=name + ' Clock Phase\
-                    Error')
+                    Error',channel='%s:%s' % (name, 'LCE'))
             seismometer['VM1'] = Trace(np.zeros(int(duration * 0.1)),
                                        sample_rate=0.1 * u.Hz, epoch=start_time, name=name + ' Mass\
-                    Position Channel 1')
+                    Position Channel 1',channel='%s:%s' % (name, 'VM1'))
             seismometer['VM2'] = Trace(np.zeros(int(duration * 0.1)),
                                        sample_rate=0.1 * u.Hz, epoch=start_time, name=name + ' Mass\
-                    Position Channel 2')
+                    Position Channel 2',channel='%s:%s' % (name, 'VM2'))
             seismometer['VM3'] = Trace(np.zeros(int(duration * 0.1)),
                                        sample_rate=0.1 * u.Hz, epoch=start_time, name=name + ' Mass\
-                    Position Channel 3')
+                    Position Channel 3',channel='%s:%s' % (name, 'VM3'))
             seismometer['VEP'] = Trace(13 * np.ones(int(duration * 0.1)),
                                        sample_rate=0.1 * u.Hz, epoch=start_time, name=name + ' System\
-                    Voltage')
+                    Voltage',channel='%s:%s' % (name, 'VEP'))
             seismometer['VKI'] = Trace(np.zeros(int(duration * 0.1)),
                                        sample_rate=0.1 * u.Hz, epoch=start_time, name=name + ' System\
-                    temperature')
+                    temperature',channel='%s:%s' % (name, 'VKI'))
             # set location
             for chan in seismometer.keys():
                 seismometer[chan].location = location
         return seismometer
+
+    def to_obspy(self):
+        import obspy
+        mystream = obspy.core.stream.Stream()
+        for key in self.keys():
+            mystream += self[key].to_obspy()
+        return mystream
+
+
+    def rotate_RT(self, bearing):
+        """
+
+        Parameters
+        ----------
+        bearing : `float`
+            degrees from north
+
+        Returns
+        -------
+        seismometer : `seispy.station.stationdata.Seismometer`
+            seismometer with new channels for transverse and radial related to a single
+            source
+        """
+        theta = np.radians(bearing)
+        dataT = self['HHN'].value * np.cos(theta) - self['HHN'].value * np.sin(theta)
+        dataR = self['HHE'].value * np.sin(theta) + self['HHE'].value * np.cos(theta)
+        sample_rate = self['HHZ'].sample_rate
+        epoch = self['HHZ'].epoch
+        self['HHT'] = Trace(dataT, sample_rate=sample_rate, epoch=epoch, name='Transverse relative to %4.2f' % bearing,
+                            channel=self.channel)
+        self['HHR'] = Trace(dataR, sample_rate=sample_rate, epoch=epoch, name='Radial relative to %4.2f' % bearing,
+                            channel=self.channel)
 
 
 class SeismometerArray(OrderedDict):
     """
     Data object for storing data for a station
     """
+
+    def to_obspy(self):
+        from obspy.core.stream import Stream
+        mystream = Stream()
+        for key in self.keys():
+            mystream += self[key].to_obspy()
+
+        return mystream
+
+
 
     @classmethod
     def fetch_data(cls, st, et, framedir='./', chans_type='useful'):
