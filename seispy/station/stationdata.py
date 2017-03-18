@@ -159,9 +159,9 @@ class Seismometer(OrderedDict):
         sample_rate = self['HHZ'].sample_rate
         epoch = self['HHZ'].epoch
         self['HHT'] = Trace(dataT, sample_rate=sample_rate, epoch=epoch, name='Transverse relative to %4.2f' % bearing,
-                            channel=self.channel)
+                            channel=self['HHN'].channel)
         self['HHR'] = Trace(dataR, sample_rate=sample_rate, epoch=epoch, name='Radial relative to %4.2f' % bearing,
-                            channel=self.channel)
+                            channel=self['HHN'].channel)
 
 
 class SeismometerArray(OrderedDict):
