@@ -4,27 +4,27 @@ import scipy
 import glob
 from gwpy.time import *
 from astropy import units as u
-
+import geographiclib.geodesic as ggg
+import obspy.core.trace
 
 class Trace(TimeSeries):
     """class for doing seismic data analysis, inherited from gwpy TimeSeries"""
 
     def to_obspy(self):
-        import obspy.core.trace as tr
         """
         Take this trace to an obspy trace
 
         Returns
         -------
         """
-        stats = tr.Stats()
+        stats = obspy.core.trace.Stats()
         stats['sampling_rate'] = self.sample_rate.value
         stats['location'] = self.get_location()
         stats['starttime'] = self.times.value[0]
         stats['npts'] = self.times.value.size
         stats['channel'] = self.channel.name.split(':')[1]
         stats['station'] = self.channel.name.split(':')[0]
-        return tr.Trace(self.value, stats)
+        return obspy.core.trace.Trace(self.value, stats)
 
     def hilbert(self):
         """
@@ -268,8 +268,79 @@ class Trace(TimeSeries):
         elif type == 'bit':
             TS = np.sign(self.detrend())
             TS = Trace(TS)
-#            TS.__dict__ = self.copy_metadata()
             return TS.detrend()
+
+    def get_wave_path(self, event):
+        """
+        Gets the primary wave path from the event location to the seismic station
+        using known coordinates of both. Distance is computed using an ellipsoidal
+        Earth model and following a geodesic path.
+
+        Parameters
+        ----------
+        event: `seispy.event.Event`
+            seisEv object describing seismic event.
+
+        Returns
+        -------
+        dist: `float`
+            distance traveled between event location and station (meters).
+        bearing: `float`
+            final bearing (when it reaches station, relative to north)
+            of wave propagation path (degrees).
+        """
+        # Get station coordinates (in degrees)
+        sta_coords = self.get_coordinates()[0]
+
+        # Rename coordinates for clarity.
+        lat1 = event.latitude
+        long1 = event.longitude
+        lat2 = sta_coords[0]
+        long2 = sta_coords[1]
+
+        # Compute distance and final bearing with WGS84 ellipsoid.
+        geoObj = ggg.Geodesic.WGS84.Inverse(lat1, long1, lat2, long2)
+        dist = geoObj['s12']
+        bearing = geoObj['azi2']
+
+        return dist, bearing
+
+    def get_coordinates(self):
+        """
+        Gets homestake station coordinates
+
+        Returns
+        -------
+        coordinate : `list`
+            list [latitude, longitude, elevation, depth]
+        """
+        locs = {}
+        locs['DEAD'] = [44.382699, -103.7532, 1498, 0]
+        locs['LHS'] = [44.347299, -103.7748, 1684, 0]
+        locs['ORO'] = [44.343499, -103.7523, 1543, 0]
+        locs['ROSS'] = [44.345099, -103.7576, 1628, 0]
+        locs['RRDG'] = [44.359499, -103.7654, 1677, 0]
+        locs['SHL'] = [44.316899, -103.7098, 1772, 0]
+        locs['TPK'] = [44.340799, -103.7980, 1740, 0]
+        locs['WTP'] = [44.353899, -103.7423, 1555, 0]
+        locs['YATES'] = [44.352199, -103.7515, 1625, 0]
+        locs['300'] = [44.346399, -103.7569, 1505.1, 91.44]
+        locs['800'] = [44.347399, -103.7589, 1350, 243.84]
+        locs['1700'] = [44.351699, -103.7584, 1073.8, 518.16]
+        locs['A2000'] = [44.351099, -103.7623, 983.3, 609.6]
+        locs['B2000'] = [44.349199, -103.7605, 983.3, 609.6]
+        locs['C2000'] = [44.351599, -103.7637, 983.1, 609.6]
+        locs['D2000'] = [44.353299, -103.7689, 983.0, 609.6]
+        locs['E2000'] = [44.356399, -103.7716, 983.1, 609.6]
+        locs['A4100'] = [44.344899, -103.7535, 342.5, 1249.68]
+        locs['C4100'] = [44.351199, -103.7507, 342.3, 1249.68]
+        locs['D4100'] = [44.343599, -103.7511, 342.5, 1249.68]
+        locs['A4850'] = [44.340499, -103.7625, 115.2, 1478.28]
+        locs['B4850'] = [44.346299, -103.7581, 114.9, 1478.28]
+        locs['C4850'] = [44.346299, -103.7528, 114.6, 1478.28]
+        locs['D4850'] = [44.352999, -103.7505, 115.2, 1478.28]
+        staname = self.channel.name.split(':')[0]
+        return np.asarray(locs[staname])
 
     def get_location(self):
         """

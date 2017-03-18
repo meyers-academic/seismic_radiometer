@@ -110,22 +110,22 @@ class Seismometer(OrderedDict):
                                        channel='%s:%s' % (name, 'LCQ'))
             seismometer['LCE'] = Trace(np.zeros(int(duration * 1)),
                                        sample_rate=1 * u.Hz, epoch=start_time, name=name + ' Clock Phase\
-                    Error',channel='%s:%s' % (name, 'LCE'))
+                    Error', channel='%s:%s' % (name, 'LCE'))
             seismometer['VM1'] = Trace(np.zeros(int(duration * 0.1)),
                                        sample_rate=0.1 * u.Hz, epoch=start_time, name=name + ' Mass\
-                    Position Channel 1',channel='%s:%s' % (name, 'VM1'))
+                    Position Channel 1', channel='%s:%s' % (name, 'VM1'))
             seismometer['VM2'] = Trace(np.zeros(int(duration * 0.1)),
                                        sample_rate=0.1 * u.Hz, epoch=start_time, name=name + ' Mass\
-                    Position Channel 2',channel='%s:%s' % (name, 'VM2'))
+                    Position Channel 2', channel='%s:%s' % (name, 'VM2'))
             seismometer['VM3'] = Trace(np.zeros(int(duration * 0.1)),
                                        sample_rate=0.1 * u.Hz, epoch=start_time, name=name + ' Mass\
-                    Position Channel 3',channel='%s:%s' % (name, 'VM3'))
+                    Position Channel 3', channel='%s:%s' % (name, 'VM3'))
             seismometer['VEP'] = Trace(13 * np.ones(int(duration * 0.1)),
                                        sample_rate=0.1 * u.Hz, epoch=start_time, name=name + ' System\
-                    Voltage',channel='%s:%s' % (name, 'VEP'))
+                    Voltage', channel='%s:%s' % (name, 'VEP'))
             seismometer['VKI'] = Trace(np.zeros(int(duration * 0.1)),
                                        sample_rate=0.1 * u.Hz, epoch=start_time, name=name + ' System\
-                    temperature',channel='%s:%s' % (name, 'VKI'))
+                    temperature', channel='%s:%s' % (name, 'VKI'))
             # set location
             for chan in seismometer.keys():
                 seismometer[chan].location = location
@@ -166,9 +166,10 @@ class Seismometer(OrderedDict):
 
 class SeismometerArray(OrderedDict):
     """
-    Data object for storing data for a station
-    """
+    Seismometer array object
 
+    TODO add taper, filter, etc.
+    """
     def to_obspy(self):
         from obspy.core.stream import Stream
         mystream = Stream()
@@ -176,8 +177,6 @@ class SeismometerArray(OrderedDict):
             mystream += self[key].to_obspy()
 
         return mystream
-
-
 
     @classmethod
     def fetch_data(cls, st, et, framedir='./', chans_type='useful'):
