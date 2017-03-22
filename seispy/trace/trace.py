@@ -28,7 +28,6 @@ class Trace(TimeSeries):
 
     def hilbert(self):
         """
-        TODO: need a unittest
 
         Performs hilbert transform to get envelope of TS data.
 
@@ -43,8 +42,10 @@ class Trace(TimeSeries):
             extension of data (not just what woudl normally
             be considered hilbert transform)
         """
+        # TODO: need a unittest
+
         # hilbert transform
-        arr = scipy.signal.hilbert(self.value)
+        arr = np.abs(scipy.signal.hilbert(self.value))
 
         # class assignment stuff...
         TS = Trace(arr, name=self.name, channel=self.channel,
@@ -54,7 +55,6 @@ class Trace(TimeSeries):
 
     def taper(self, **kwargs):
         """
-        TODO: unittest
 
         Returns a new (deep) copy of the object with a sin^2 taper
         applied to both ends of the data.
@@ -62,6 +62,7 @@ class Trace(TimeSeries):
         Takes kwargs of 'v_min, v_max, dist' or a
         :class:`seispy.event.Event` class
         """
+        # TODO: unittest
 
         # Make copy.
         arr = np.copy(self.value)
@@ -81,7 +82,6 @@ class Trace(TimeSeries):
         else:
             raise ValueError('kwargs should be v_min, v_max, dist OR event=seisEv.')
 
-
         # Make beginning taper.
         nSamp_t1 = int(np.ceil(dur_t1/dt))
         samples1 = np.arange(0,nSamp_t1,step=1)
@@ -90,23 +90,20 @@ class Trace(TimeSeries):
         # Make end taper.
         # Check if end arrival time is aft
         nSamp_t2 = int(np.ceil(float(dur_t2)/dt))
-        samples2 = np.arange((nSamp_t2-1), -1,step=-1)
+        samples2 = np.arange((nSamp_t2-1), -1, step=-1)
         taper2 = np.sin(2*np.pi*samples2/(4*(nSamp_t2-1)))
 
         # Taper data.
         times = self.times.value
         arr[0:nSamp_t1] *= taper1
         arr[-nSamp_t2:] *= taper2
-        newtimes = np.roll(times, -nSamp_t2)[:(nSamp_t1+nSamp_t2)]
-        newtrace = Trace(arr, times=newtimes, sample_rate=self.sample_rate,
+        newtrace = Trace(arr, times=times, sample_rate=self.sample_rate,
                          channel=self.channel, name=self.name)
         newtrace.tapered = True
-
         return newtrace
 
     def smooth(self, width=1):
         """
-        TODO: need a unittest
 
         Smooths data by convolving data with ones...
         still not sure how exactly this works and seems to
@@ -122,6 +119,8 @@ class Trace(TimeSeries):
         smoothed : `Trace`
             Smoothed time series trace.
         """
+
+        # TODO: need a unittest
 
         TS = np.abs(self)
 
@@ -349,7 +348,6 @@ class Trace(TimeSeries):
 
         Parameters
         ----------
-        none
 
         Returns
         -------

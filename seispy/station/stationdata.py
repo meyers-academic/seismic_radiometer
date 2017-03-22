@@ -163,13 +163,12 @@ class Seismometer(OrderedDict):
         self['HHR'] = Trace(dataR, sample_rate=sample_rate, epoch=epoch, name='Radial relative to %4.2f' % bearing,
                             channel=self['HHN'].channel)
 
-
 class SeismometerArray(OrderedDict):
     """
     Seismometer array object
 
-    TODO add taper, filter, etc.
     """
+    # TODO add taper, filter, etc.
     def to_obspy(self):
         from obspy.core.stream import Stream
         mystream = Stream()
@@ -180,7 +179,7 @@ class SeismometerArray(OrderedDict):
 
     @classmethod
     def fetch_data(cls, st, et, framedir='./', chans_type='useful'):
-        """TODO: Docstring for fetch_data.
+        """
 
         Parameters
         ----------
@@ -197,6 +196,7 @@ class SeismometerArray(OrderedDict):
         seismometer_array : :class:`seispy.station.stationdata.SeismometerArray`
             seismometer array
         """
+        # TODO: Docstring for fetch_data.
         arr = cls.initialize_all_good(homestake(), et - st,
                                       chans_type=chans_type, start_time=st)
         for station in arr.keys():
