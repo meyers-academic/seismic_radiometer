@@ -45,13 +45,14 @@ class Trace(TimeSeries):
         # TODO: need a unittest
 
         # hilbert transform
-        arr = np.abs(scipy.signal.hilbert(self.value))
+        arr = (np.abs(scipy.signal.hilbert(self.value)) ** 2)**(0.5)
 
         # class assignment stuff...
         TS = Trace(arr, name=self.name, channel=self.channel,
                    sample_rate=self.sample_rate, unit=self.unit,
                    epoch=self.epoch)
-        return TS.detrend()
+
+        return TS
 
     def taper(self, **kwargs):
         """
@@ -289,7 +290,7 @@ class Trace(TimeSeries):
             of wave propagation path (degrees).
         """
         # Get station coordinates (in degrees)
-        sta_coords = self.get_coordinates()[0]
+        sta_coords = self.get_coordinates()
 
         # Rename coordinates for clarity.
         lat1 = event.latitude
