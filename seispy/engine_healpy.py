@@ -11,6 +11,7 @@ import numpy as np
 import ConfigParser
 import optparse
 from collections import OrderedDict
+import seispy.plotter.plot as hplot
 
 def parse_command_line():
     """
@@ -53,7 +54,7 @@ def main(params):
     data = SeismometerArray.initialize_all_good(stations,
         float(params['Recovery']['duration']), chans_type='fast')
     # do injections based on config file
-    data.add_white_noise(1e-20, segdur=int(params['Recovery']['segdur']))
+    data.add_white_noise(1e-14, segdur=int(params['Recovery']['segdur']))
     for key in params.keys():
         if key.split(' ')[0] == 'Injection':
             if params[key]['type']=='p':
@@ -88,14 +89,10 @@ def main(params):
                                 Fs=float(params['Recovery']['sample_rate']))
 
 
-    phimesh = float(params['Recovery']['phimesh'])
-    thetamesh = float(params['Recovery']['phimesh'])
-    thetas = np.arange(thetamesh, 180+thetamesh, thetamesh) * np.pi / 180
-    phis = np.arange(phimesh, 360+phimesh, phimesh) * np.pi / 180
 
     # do recovery
     maps, phis, thetas =\
-            data.recovery_matrices_pinv(
+            data.recovery_matrices_pinv_healpy(
                 params['Recovery']['recovery_string'],
                 stations,
                 params['Recovery']['frequency'],
@@ -103,7 +100,6 @@ def main(params):
                 fftlength=float(params['Recovery']['segdur']),
                 overlap=float(params['Recovery']['segdur'])/2,
                 autocorrelations=True,
-                thetas=thetas, phis=phis,
                 iter_lim=2000,
                 nproc=int(params['Recovery']['nproc']),
                 alpha=float(params['Recovery']['alpha']),
@@ -117,7 +113,7 @@ def main(params):
     recovered_parameters = {}
     for rec in maps.keys():
         recovered_parameters[rec] = OrderedDict()
-        if rec == 'r':
+        if False:#rec == 'r':
             idx = np.where(thetas == np.pi / 2)
             final_power = maps[rec].data
             total_power =\
@@ -145,23 +141,28 @@ def main(params):
             if rec!='SNR':
                 maps[rec].data = maps[rec].data / float(params['Recovery']['segdur'])
             tot_power = maps[rec].data.sum()
-            p_rec = maps[rec].power_in_conf(0.5)
-            contour, phi_vals, theta_vals = maps[rec].get_contour(0.50)
-            recovered_parameters[rec]['phi low'] = phi_vals[0] * (180/np.pi)
-            recovered_parameters[rec]['phi recovered'] = phi_vals[1] * (180/np.pi)
-            recovered_parameters[rec]['phi max'] = phi_vals[2] * (180/np.pi)
-            recovered_parameters[rec]['theta low'] = theta_vals[0]*(180/np.pi)
-            recovered_parameters[rec]['theta recovered'] = theta_vals[1]*(180/np.pi)
-            recovered_parameters[rec]['theta high'] = theta_vals[2]*(180/np.pi)
-            recovered_parameters[rec]['Recovered amplitude'] = p_rec * u.m
-            recovered_parameters[rec]['Total Map Power'] = tot_power * u.m**2
-            plot = maps[rec].plot()
-            ax = plot.gca()
+            #p_rec = maps[rec].power_in_conf(0.5)
+            #contour, phi_vals, theta_vals = maps[rec].get_contour(0.50)
+            #recovered_parameters[rec]['phi low'] = phi_vals[0] * (180/np.pi)
+            #recovered_parameters[rec]['phi recovered'] = phi_vals[1] * (180/np.pi)
+            #recovered_parameters[rec]['phi max'] = phi_vals[2] * (180/np.pi)
+            #recovered_parameters[rec]['theta low'] = theta_vals[0]*(180/np.pi)
+            #recovered_parameters[rec]['theta recovered'] = theta_vals[1]*(180/np.pi)
+            #recovered_parameters[rec]['theta high'] = theta_vals[2]*(180/np.pi)
+            #recovered_parameters[rec]['Recovered amplitude'] = p_rec * u.m
+            #recovered_parameters[rec]['Total Map Power'] = tot_power * u.m**2
+            ax = plt.subplot(111,projection='mollweide')
+            ax.grid(True)
+            hplot.outline_text(ax)
+            hplot.healpix_heatmap(maps[rec].data, cmap='viridis')
+            for tick in ax.xaxis.get_major_ticks():
+                tick.label.set_fontsize(10)
+            for tick in ax.yaxis.get_major_ticks():
+                tick.label.set_fontsize(10)
+            plt.colorbar()
             ax.set_title(r'$%s$-wave recovery' % maps[rec].maptype, fontsize=12)
-            if rec=='SNR':
-                plot.cbar.label='SNR'
-            plot.savefig('%s/%s_recovery_%s' % (params['Recovery']['output_directory'], rec, params['Recovery']['tag']))
-            plot.close()
+            plt.savefig('%s/%s_recovery_%s' % (params['Recovery']['output_directory'], rec, params['Recovery']['tag']))
+            plt.close()
             np.savetxt('%s/%s_map_matrix_%s.txt' %
                       (params['Recovery']['output_directory'], rec,
                        params['Recovery']['tag']),

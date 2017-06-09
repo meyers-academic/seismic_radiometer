@@ -2,7 +2,7 @@ from __future__ import division
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.special import sph_harm
-from .utils import calc_travel_time
+from .utils import calc_travel_time, calc_travel_time2
 
 def orf_p(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1,
         phimesh=1):
@@ -116,8 +116,8 @@ def orf_s(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, ff=None, thetamesh=1,phimesh
             OmgZ*x_vec[0])/vs) * (dtheta*dphi*3/(8*np.pi))))
     return gammas, ff
 
-def orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetas=None,
-        phis=None):
+def orf_p_directional2(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetas=None,
+        phis=None, healpy=False):
     """
     Calculate p-wave overlap reduction function between
     two channels
@@ -157,7 +157,72 @@ def orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetas=None,
         thetas = np.arange(3,180,6) * np.pi / 180
     if phis is None:
         phis = np.arange(3,360,6) * np.pi / 180
-    THETAS, PHIS = np.meshgrid(thetas, phis)
+    if healpy:
+        THETAS = thetas
+        PHIS = phis
+    else:
+        THETAS, PHIS = np.meshgrid(thetas, phis)
+    # much faster to vectorize things
+    OmgX = np.sin(THETAS)*np.cos(PHIS)
+    OmgY = np.sin(THETAS)*np.sin(PHIS)
+    OmgZ = (np.cos(THETAS))
+    Omg_shape = OmgX.shape
+    OMEGA = np.vstack((OmgX.flatten(), OmgY.flatten(), OmgZ.flatten())).T
+    dt = calc_travel_time2(x_vec, OMEGA, vp)
+    dt = dt.reshape(Omg_shape)
+    sf = ((OmgX*ch1_vec[0] +
+            OmgY*ch1_vec[1] + OmgZ*ch1_vec[2]) * (OmgX*ch2_vec[0] +
+            OmgY*ch2_vec[1] + OmgZ*ch2_vec[2]))
+    gammas = sf *  np.exp(-2*np.pi*1j*f*dt)
+    return gammas, phis, thetas
+
+
+def orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetas=None,
+        phis=None, healpy=False):
+    """
+    Calculate p-wave overlap reduction function between
+    two channels
+    Parameters
+    ----------
+    ch1_vec : `list-like`
+        channel 1 vector
+    ch2_vec : `list-like`
+        channel2 vector
+    det1_loc : `list-like`
+        location of first sensor
+    det2_loc : `list-like`
+        location of second sensor
+    vp : `float`
+        velocity of p-wave
+    thetas : `numpy.ndarray`, optional
+        list of theta values to use. Assumed to be angle FROM the north pole.
+        If not supplied, defaults to 3 -> 177 in increments of 6 degrees.
+    phis : `numpy.ndarray`, optional
+        list of phi values to use. If not supplied,
+        defaults to 3 -> 357 in increments of 6 degrees.
+
+    Returns
+    -------
+    gamma : `numpy.ndarray`
+        overlap reduction function for p-waves
+    phis : `numpy.ndarray`
+        phi values
+    thetas : `numpy.ndarray`
+        theta values
+    """
+
+    # get separation vector
+    x_vec = np.array(det1_loc) - np.array(det2_loc)
+    # make it a unit vector
+    if thetas is None:
+        thetas = np.arange(3,180,6) * np.pi / 180
+    if phis is None:
+        phis = np.arange(3,360,6) * np.pi / 180
+    if healpy:
+        THETAS = thetas
+        PHIS = phis
+    else:
+        THETAS, PHIS = np.meshgrid(thetas, phis)
     # much faster to vectorize things
     OmgX = np.sin(THETAS)*np.cos(PHIS)
     OmgY = np.sin(THETAS)*np.sin(PHIS)
@@ -173,7 +238,7 @@ def orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetas=None,
     return gammas, phis, thetas
 
 def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
-        thetas=None,phis=None):
+        thetas=None,phis=None, healpy=False):
     """
     Calculate p-wave overlap reduction function between
     two channels
@@ -210,7 +275,11 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
         thetas = np.arange(3,180,6) * np.pi / 180
     if phis is None:
         phis = np.arange(3,360,6) * np.pi / 180
-    THETAS, PHIS = np.meshgrid(thetas, phis)
+    if healpy:
+        THETAS = thetas
+        PHIS = phis
+    else:
+        THETAS, PHIS = np.meshgrid(thetas, phis)
     dtheta = thetas[1] - thetas[0]
     dphi = phis[1] - phis[0]
     # much faster to vectorize things
@@ -239,7 +308,7 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
     return gamma1,gamma2,phis,thetas
 
 def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, f,
-        thetas=None,phis=None):
+        thetas=None,phis=None, healpy=False):
     """
     Calculate r-wave overlap reduction function between
     two channels
@@ -274,18 +343,22 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, 
         thetas = np.arange(3,180,6) * np.pi / 180
     if phis is None:
         phis = np.arange(3,360,6) * np.pi / 180
-    THETAS, PHIS = np.meshgrid(thetas, phis)
+    if healpy:
+        THETAS = thetas
+        PHIS = phis
+    else:
+        THETAS, PHIS = np.meshgrid(thetas, phis)
     # much faster to vectorize things
     OmgX = np.sin(THETAS)*np.cos(PHIS)
     OmgY = np.sin(THETAS)*np.sin(PHIS)
     OmgZ = (np.cos(THETAS))
     # only theta = pi/2 sticks around, okay? ok.
-    OmgX[THETAS < np.pi / 2] = 0
-    OmgY[THETAS < np.pi / 2] = 0
-    OmgZ[THETAS < np.pi / 2] = 0
-    OmgX[THETAS > np.pi / 2] = 0
-    OmgY[THETAS > np.pi / 2] = 0
-    OmgZ[THETAS > np.pi / 2] = 0
+    #OmgX[THETAS < np.pi / 2] = 0
+    #OmgY[THETAS < np.pi / 2] = 0
+    #OmgZ[THETAS < np.pi / 2] = 0
+    #OmgX[THETAS > np.pi / 2] = 0
+    #OmgY[THETAS > np.pi / 2] = 0
+    #OmgZ[THETAS > np.pi / 2] = 0
     # R-wave stuff
     R1 = np.cos(PHIS)
     R2 = np.sin(PHIS)
@@ -302,7 +375,6 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, 
     gamma = sf1*np.conj(sf2)*np.exp(-2*np.pi*1j*f*dt) * np.exp(-(det1_loc[2] +
         det2_loc[2]) / float(alpha))
     return gamma,phis,thetas
-
 
 def ccStatReadout_s_wave(Y, sigma, ch1_vec, ch2_vec, det1_loc, det2_loc, vs, thetamesh=1,phimesh=1):
     """
@@ -482,17 +554,17 @@ def orf_p_sph(l,m,ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1
     return gammas, ff
 
 def orf_picker(string, ch1_vec, ch2_vec, det1_loc, det2_loc, v, f, thetas=None,
-        phis=None, epsilon=0.1, alpha=1000):
+        phis=None, epsilon=0.1, alpha=1000, healpy=False):
     if string is 'r':
         g1, p, t =  orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon,
-                alpha, v, f, thetas=thetas, phis=phis)
+                alpha, v, f, thetas=thetas, phis=phis, healpy=healpy)
         return g1.reshape((g1.size,1)), g1.shape
     if string is 's':
         g1, g2, p, t =  orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
-                v, f, thetas=thetas, phis=phis)
+                v, f, thetas=thetas, phis=phis, healpy=healpy)
         return g1.reshape((g1.size,1)), g2.reshape((g2.size,1)), g1.shape, g2.shape
     if string is 'p':
-        g1, p, t = orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
-                 v, f, thetas=thetas, phis=phis)
+        g1, p, t = orf_p_directional2(ch1_vec, ch2_vec, det1_loc, det2_loc,
+                 v, f, thetas=thetas, phis=phis, healpy=healpy)
         return g1.reshape((g1.size,1)), g1.shape
 

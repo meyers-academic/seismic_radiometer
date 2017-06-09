@@ -127,9 +127,10 @@ class Event(dict):
         f.write(mag_line)
         f.close()
 
-    def analyze(self, station, frequencies, framedir='./', return_envelopes=False):
-        self['time'] = utc2gps(self.time)
-        print 'LOADING DATA'
+    def analyze(self, station, frequencies, framedir='./',
+            return_envelopes=False, changed_bearing=None):
+        if isinstance(self.time, UTCDateTime):
+            self['time'] = utc2gps(self.time)
         data = Seismometer.fetch_data(station, self.time+self.win_start, self.time+self.win_end,
                                       framedir=framedir, chans_type='fast_chans')
         analyzed_event = self.copy()
@@ -137,16 +138,18 @@ class Event(dict):
         # detrend the data
         for key in data.keys():
             data[key] = data[key].detrend()
-        print 'GETTING PATH'
         # get bearing and distance
         dist, bearing = data['HHZ'].get_wave_path(self)
         analyzed_event['distance'] = dist
         analyzed_event['bearing'] = bearing
         # add transverse and radial channels to this seismometer
-        print 'ROTATING'
-        data.rotate_RT(bearing)
+        if changed_bearing is not None:
+            print 'CHANGING BEARING: %4.2f to %4.2f' % (bearing,
+                    changed_bearing)
+            data.rotate_RT(changed_bearing)
+        else:
+            data.rotate_RT(bearing)
         # taper around the rayleigh-wave part
-        print 'TAPERING'
         for key in data.keys():
             data[key] = data[key].taper(event=self)
         final_table = Table(names=analyzed_names)
@@ -154,7 +157,6 @@ class Event(dict):
         final_table['station'] = final_table['channel'].astype('str')
         env_dict = OrderedDict()
         filtered_final = OrderedDict()
-        print 'FILTERING AND GETTING ENVELOPE'
         for frequency in frequencies:
             filtered_final[frequency] = {}
             env_dict[frequency] = {}
@@ -165,12 +167,13 @@ class Event(dict):
                 env = filtered.hilbert()
                 env_dict[frequency][key] = env
                 analyzed_event['peak amplitude'] = np.max(env)
-                conf, pt = getEstimateAndConfLevel(env.times.value, env.value, 0.68)
+                pt = env.times.value[np.argmax(env.value)]
+#                conf, pt = getEstimateAndConfLevel(env.times.value, env.value, 0.68)
                 #analyzed_event['peak time minimum'] = np.min(conf)
                 #analyzed_event['peak time maximum'] = np.max(conf)
                 analyzed_event['peak time'] = pt
                 # get standard deviation assuming gaussian
-                analyzed_event['velocity'] = ((pt - self.time) / dist)
+                analyzed_event['velocity'] = (dist / (pt - self.time))
                 analyzed_event['analyzed'] = True
                 analyzed_event['filter frequency'] = frequency
                 final_table.add_row(analyzed_event)

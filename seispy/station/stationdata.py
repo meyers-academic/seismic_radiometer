@@ -1,5 +1,6 @@
 from __future__ import division
 from collections import OrderedDict
+from warnings import warn
 from ..utils import *
 import astropy.units as u
 from ..noise import gaussian
@@ -7,9 +8,11 @@ from ..trace import Trace, fetch
 from ..recoverymap import RecoveryMap
 import numpy as np
 from scipy.sparse.linalg import lsqr
+from scipy.linalg import svd, pinv, pinv2, cholesky, lu, lu_factor, eigh
 from gwpy.frequencyseries import FrequencySeries
 from .station import StationArray, homestake
 import geographiclib.geodesic as ggg
+import healpy as hp
 
 
 class Seismometer(OrderedDict):
@@ -51,7 +54,7 @@ class Seismometer(OrderedDict):
 
     @classmethod
     def initialize_all_good(cls, duration, chans_type='useful', start_time=0,
-                            name='seismometer', location=None):
+                            name='seismometer', location=None, Fs=None):
         """
 
         Parameters
@@ -90,15 +93,17 @@ class Seismometer(OrderedDict):
         if location is None:
             location = [0, 0, 0]
         name = str(name)
+        if Fs is None:
+            Fs = 100
         seismometer = Seismometer()
-        seismometer['HHE'] = Trace(np.zeros(int(duration * 100)),
-                                   sample_rate=100 * u.Hz, epoch=start_time, name=name + ' East',
+        seismometer['HHE'] = Trace(np.zeros(int(duration * Fs)),
+                                   sample_rate=Fs * u.Hz, epoch=start_time, name=name + ' East',
                                    unit=u.m, channel='%s:%s' % (name, 'HHE'))
-        seismometer['HHN'] = Trace(np.zeros(int(duration * 100)),
-                                   sample_rate=100 * u.Hz, epoch=start_time, name=name + ' North',
+        seismometer['HHN'] = Trace(np.zeros(int(duration * Fs)),
+                                   sample_rate=Fs * u.Hz, epoch=start_time, name=name + ' North',
                                    unit=u.m, channel='%s:%s' % (name, 'HHN'))
-        seismometer['HHZ'] = Trace(np.zeros(int(duration * 100)),
-                                   sample_rate=100 * u.Hz, epoch=start_time, name=name + ' Vertical',
+        seismometer['HHZ'] = Trace(np.zeros(int(duration * Fs)),
+                                   sample_rate=Fs * u.Hz, epoch=start_time, name=name + ' Vertical',
                                    unit=u.m, channel='%s:%s' % (name, 'HHZ'))
         if chans_type == 'fast_chans':
             for chan in seismometer.keys():
@@ -178,7 +183,8 @@ class SeismometerArray(OrderedDict):
         return mystream
 
     @classmethod
-    def fetch_data(cls, st, et, framedir='./', chans_type='useful'):
+    def fetch_data(cls, st, et, framedir='./', chans_type='useful',
+            stations=None):
         """
 
         Parameters
@@ -197,8 +203,13 @@ class SeismometerArray(OrderedDict):
             seismometer array
         """
         # TODO: Docstring for fetch_data.
-        arr = cls.initialize_all_good(homestake(), et - st,
+        if stations is not None:
+            arr = cls.initialize_all_good(homestake(stations), et - st,
                                       chans_type=chans_type, start_time=st)
+        else:
+            arr = cls.initialize_all_good(homestake(), et - st,
+                                      chans_type=chans_type, start_time=st)
+
         for station in arr.keys():
             arr[station] = Seismometer.fetch_data(station, st, et,
                                                   framedir=framedir, chans_type=chans_type)
@@ -524,12 +535,13 @@ class SeismometerArray(OrderedDict):
 
     @classmethod
     def initialize_all_good(cls, location_dict, duration, chans_type='useful',
-                            start_time=0):
+                            start_time=0, Fs=None):
         data = cls()
         for name in location_dict.keys():
             data[name] = Seismometer.initialize_all_good(duration,
                                                          chans_type=chans_type, start_time=start_time,
-                                                         location=location_dict[name], name=name)
+                                                         location=location_dict[name],
+                                                         name=name, Fs=Fs)
         return data
 
     @classmethod
@@ -593,6 +605,8 @@ class SeismometerArray(OrderedDict):
                           channels=None, phis=None, thetas=None, fftlength=2, overlap=1,
                           nproc=1, iter_lim=1000, atol=1e-6, btol=1e-6):
         """
+        Recovery calculated with gamma*Y, gammaT*gamma into lsqr (the typical
+        way we do it)
 
         Parameters
         ----------
@@ -621,6 +635,13 @@ class SeismometerArray(OrderedDict):
         if channels is None:
             channels = ['HHE', 'HHN', 'HHZ']
         First = True
+        distances = []
+        for station in stations:
+            for station2 in stations:
+                diff_dir = station_locs[station] - station_locs[stations2]
+                distances.append(np.sqrt(np.dot(diff_dir,diff_dir)))
+        maxd = np.max(distances)
+
         for ii, station1 in enumerate(stations):
             for jj, station2 in enumerate(stations):
                 for kk, chan1 in enumerate(channels):
@@ -649,6 +670,8 @@ class SeismometerArray(OrderedDict):
                             g = []
                             shapes = []
                             for rec, v in zip(rec_str, v_list):
+                                spot_size = v / (2 * maxd * recovery_freq)
+                                npix = 4*np.pi / (spot_size **2)
                                 if rec is 's':
                                     # get s orf
                                     g1, g2, g1_s, g2_s = orf_picker(rec, set_channel_vector(channels[kk]),
@@ -689,8 +712,16 @@ class SeismometerArray(OrderedDict):
                                 GG += np.dot(np.conj(g), np.transpose(g))
                                 GY += np.conj(g) * p12
         # run least squares solver
+        print 'IS GG SYMMETRIC??'
+        print (GG.transpose() == GG).all()
         S = lsqr(np.real(GG), np.real(GY.value), iter_lim=iter_lim, atol=atol,
-                 btol=btol)
+                 btol=btol, calc_var=True)
+        R = S[-1] * np.real(GG)
+        print R
+        G_inv = np.linalg.pinv(np.real(GG))
+        plt.pcolormesh(R, cmap='viridis')
+        plt.colorbar()
+        plt.savefig('resolution_matrix')
         maps = {}
         idx_low = 0
         # separate result into proper maps
@@ -705,15 +736,24 @@ class SeismometerArray(OrderedDict):
                 maps['s1'] = \
                     RecoveryMap(S[0].reshape(g.shape)[idx_low:idx_low + length].reshape(shapes[ii]),
                                 thetas, phis, 's1')
+                maps['sigma_sq_s1'] =\
+                    RecoveryMap(sig2.reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),thetas,
+                            phis, '\sigma^2_{s2}')
                 idx_low += length
                 maps['s2'] = \
                     RecoveryMap(S[0].reshape(g.shape)[idx_low:idx_low + length].reshape(shapes[ii]),
                                 thetas, phis, 's2')
+                maps['sigma_sq_s2'] =\
+                    RecoveryMap(S[-1].reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),thetas,
+                            phis, '\sigma^2_{s2}')
             else:
                 length = shapes[ii][0] * shapes[ii][1]
                 maps[rec] = \
                     RecoveryMap(S[0].reshape(g.shape)[idx_low:idx_low + length].reshape(shapes[ii]),
                                 thetas, phis, rec)
+                maps['sigma_sq_'+rec] =\
+                    RecoveryMap(S[-1].reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),thetas,
+                            phis, '\sigma^2_{'+rec+'}')
                 idx_low += length
 
         print('Stopped at iteration number ' + str(S[2]))
@@ -723,4 +763,718 @@ class SeismometerArray(OrderedDict):
             print("We found an approximate solution")
         print('Converged to a relative residual of ' + str(S[3] /
                                                            np.sqrt((np.abs(GY.value) ** 2).sum())))
+        return maps, phis, thetas
+    def get_ffts(self, recovery_freq, channels=None, fftlength=2,
+            overlap=1, window='hann',nproc=8):
+        """TODO: Docstring for get_ffts.
+
+        Parameters
+        ----------
+        recovery_Freq : TODO
+
+        Returns
+        -------
+        TODO
+
+        """
+        stations = self.keys()
+        if channels is None:
+            channels = ['HHE','HHN','HHZ']
+        First = 1
+        data_samples = []
+        for ii, station1 in enumerate(stations):
+            for kk, channel in enumerate(channels):
+                # get csd spectrogram
+                fftgram_temp = \
+                    fftgram(self[station1][channels[kk]],stride=fftlength
+                                                         )
+                # get covariance matrix entry
+                cp = fftgram_temp.mean(0)
+                idx = \
+                    np.where(cp.frequencies.value == float(recovery_freq))[0]
+
+                amax =  np.argmax(fftgram_temp[0,:])
+                fft_of_t = fftgram_temp[:,idx[0]-1:idx[0]+2].sum(axis=1).value
+                if First:
+                    data_samples = fft_of_t.T
+                    First = 0
+                else:
+                    data_samples = np.vstack((data_samples, fft_of_t.T))
+        return data_samples
+
+
+    def get_coherences(self, recovery_freq, channels=None, fftlength=2,
+            overlap=1, window='hann',nproc=8):
+        """TODO: Docstring for get_coherences.
+
+        Parameters
+        ----------
+        recovery_Freq : TODO
+
+        Returns
+        -------
+        TODO
+
+        """
+        stations = self.keys()
+        if channels is None:
+            channels = ['HHE','HHN','HHZ']
+        First = 1
+        for ii, station1 in enumerate(stations):
+            for jj, station2 in enumerate(stations):
+                for kk, chan1 in enumerate(channels):
+                    for ll, chan2 in enumerate(channels):
+                        if jj < ii:
+                            # we don't double count stations
+                            continue
+                        if ll < kk:
+                            # don't double count channels
+                            continue
+                        if ii == jj and ll == kk:
+                            continue
+                        else:
+                            # get csd spectrogram
+                            P12 = \
+                                self[station1][channels[kk]].csd_spectrogram(self[station2][channels[ll]],
+                                                                             stride=fftlength,
+                                                                             window=window,
+                                                                             overlap=overlap,
+                                                                             nproc=nproc)
+                            # get covariance matrix entry
+                            n = np.mean(P12*np.conj(P12), 0) -\
+                                np.mean(P12,0)*np.mean(np.conj(P12), 0)
+
+                            # take mean across time
+                            cp = P12.mean(0)
+                            idx = \
+                                np.where(cp.frequencies.value == float(recovery_freq))[0]
+
+                            Y_of_t = P12[:,idx[0]-1:idx[0]+2].sum(axis=1).value
+                            if First:
+                                Ys = Y_of_t.T
+                                First = 0
+                            else:
+                                Ys = np.vstack((Ys, Y_of_t.T))
+        return Ys
+
+    def get_response_matrix_healpy(self, rec_type, station_locs, recovery_freq,
+                          v, nside=8, autocorrelations=True, epsilon=0.1, alpha=1000,
+                          channels=None, fftlength=2, overlap=1,
+                          nproc=1, iter_lim=1000, atol=1e-6, btol=1e-6):
+        """TODO: Docstring for get_gamma_matrices.
+        Returns
+        -------
+        TODO
+
+        """
+        stations = self.keys()
+        if channels is None:
+            channels = ['HHE', 'HHN', 'HHZ']
+        origin_vec = station_locs[stations[0]]
+        First = True
+        First = 1
+        for ii, station1 in enumerate(stations):
+            for kk, chan1 in enumerate(channels):
+                phis = []
+                thetas = []
+                # get gamma matrix
+                # convert freq to float
+                rf = float(recovery_freq)
+                # get diffraction limited spot size
+                # get nside for healpy based on npix (taken up to
+                # the next power of two)
+                npix2 = hp.nside2npix(nside)
+                # get theta and phi
+                thetas_temp = np.zeros(npix2)
+                phis_temp = np.zeros(npix2)
+                for mm in range(npix2):
+                    thetas_temp[mm], phis_temp[mm] =\
+                        hp.pixelfunc.pix2ang(nside,mm)
+                # get overlap reduction functions now
+                if rec_type is 's':
+                    # get s orf
+                    g1, g2, g1_s, g2_s = response_picker(rec_type,
+                                                    set_channel_vector(channels[ll]),
+                                                    station_locs[station1],
+                                                    origin_vec, v,
+                                                    float(recovery_freq),
+                                                    thetas=thetas_temp,
+                                                    phis=phis_temp,
+                                                    epsilon=epsilon,
+                                                    alpha=alpha,
+                                                    healpy=True)
+                    # append new, flattened, g onto the end
+                    # of already generated on
+                    g = np.vstack((g1, g2))
+                    shapes = [g1_s, g2_s]
+                    phis = np.hstack((phis_temp, phis_temp))
+                    thetas = np.hstack((thetas_temp, thetas_temp))
+                else:
+                    # get p or r orf
+                    g1, g_s = response_picker(rec_type, set_channel_vector(channels[kk]),
+                                         station_locs[station1],
+                                         origin_vec,
+                                         v,
+                                         float(recovery_freq),
+                                         thetas=thetas_temp,
+                                         phis=phis_temp,
+                                         epsilon=epsilon,
+                                         alpha=alpha,
+                                         healpy=True)
+                    # append new, flattened, g onto the
+                    # end of the one we've generated
+                    g = g1
+                    phis = phis_temp
+                    thetas = thetas_temp
+                    shapes = [g_s]
+                if First:
+                    # for now for G:
+                    # columns = channels
+                    # rows = directions
+                    G = g
+                    First = 0
+                else:
+                    G = np.hstack((G, g))
+        return G, phis, thetas, shapes
+
+    def get_gamma_matrix_healpy(self, rec_type, station_locs, recovery_freq,
+                          v, autocorrelations=True, epsilon=0.1, alpha=1000,
+                          channels=None, fftlength=2, overlap=1,
+                          nproc=1, iter_lim=1000, atol=1e-6, btol=1e-6,
+                          nside=8):
+        """TODO: Docstring for get_gamma_matrices.
+        Returns
+        -------
+        TODO
+
+        """
+        stations = self.keys()
+        if channels is None:
+            channels = ['HHE', 'HHN', 'HHZ']
+        First = True
+        distances = []
+        for station in stations:
+            for station2 in stations:
+                diff_dir = np.asarray(station_locs[station]) -\
+                    np.asarray(station_locs[station2])
+                distances.append(np.sqrt(np.dot(diff_dir,diff_dir)))
+        maxd = np.max(distances)
+        First = 1
+        for ii, station1 in enumerate(stations):
+            for jj, station2 in enumerate(stations):
+                for kk, chan1 in enumerate(channels):
+                    for ll, chan2 in enumerate(channels):
+                        if jj < ii:
+                            # we don't double count stations
+                            continue
+                        if ll < kk:
+                            # don't double count channels
+                            continue
+                        if ii == jj and ll == kk:
+                            continue
+                        else:
+                            phis = []
+                            thetas = []
+                            # get gamma matrix
+                            # convert freq to float
+                            rf = float(recovery_freq)
+                            # get diffraction limited spot size
+                            # get nside for healpy based on npix (taken up to
+                            # the next power of two)
+                            npix2 = hp.nside2npix(nside)
+                            # get theta and phi
+                            thetas_temp = np.zeros(npix2)
+                            phis_temp = np.zeros(npix2)
+                            for mm in range(npix2):
+                                thetas_temp[mm], phis_temp[mm] =\
+                                    hp.pixelfunc.pix2ang(nside,mm)
+                            # get overlap reduction functions now
+                            if rec_type is 's':
+                                # get s orf
+                                g1, g2, g1_s, g2_s = orf_picker(rec_type, set_channel_vector(channels[kk]),
+                                                                set_channel_vector(channels[ll]),
+                                                                station_locs[station1],
+                                                                station_locs[station2], v,
+                                                                float(recovery_freq),
+                                                                thetas=thetas_temp,
+                                                                phis=phis_temp,
+                                                                epsilon=epsilon,
+                                                                alpha=alpha,
+                                                                healpy=True)
+                                # append new, flattened, g onto the end
+                                # of already generated on
+                                g = np.vstack((g1, g2))
+                                shapes = [g1_s, g2_s]
+                                phis = np.hstack((phis_temp, phis_temp))
+                                thetas = np.hstack((thetas_temp, thetas_temp))
+                            else:
+                                # get p or r orf
+                                g1, g_s = orf_picker(rec_type, set_channel_vector(channels[kk]),
+                                                     set_channel_vector(channels[ll]), station_locs[station1],
+                                                     station_locs[station2],
+                                                     v,
+                                                     float(recovery_freq),
+                                                     thetas=thetas_temp,
+                                                     phis=phis_temp,
+                                                     epsilon=epsilon,
+                                                     alpha=alpha,
+                                                     healpy=True)
+                                # append new, flattened, g onto the
+                                # end of the one we've generated
+                                g = g1
+                                phis = phis_temp
+                                thetas = thetas_temp
+                                shapes = [g_s]
+                            if First:
+                                # for now for G:
+                                # columns = channels
+                                # rows = directions
+                                G = g
+                                First = 0
+                            else:
+                                G = np.hstack((G, g))
+        return G, phis, thetas, shapes
+
+    def recovery_matrices_pinv(self, rec_str, station_locs, recovery_freq,
+                          v_list, autocorrelations=True, epsilon=0.1, alpha=1000,
+                          channels=None, phis=None, thetas=None, fftlength=2, overlap=1,
+                          nproc=1, iter_lim=1000, atol=1e-6, btol=1e-6):
+        """
+        Calculate model parameters, S, using pseudo-inverse of gamma matrix
+
+        Parameters
+        ----------
+        rec_str
+        station_locs
+        recovery_freq
+        v_list
+        autocorrelations
+        epsilon
+        alpha
+        channels
+        phis
+        thetas
+        fftlength
+        overlap
+        nproc
+        iter_lim
+        atol
+        btol
+
+        Returns
+        -------
+
+        """
+        stations = self.keys()
+        if channels is None:
+            channels = ['HHE', 'HHN', 'HHZ']
+        First = True
+        ct = 0
+        for ii, station1 in enumerate(stations):
+            for jj, station2 in enumerate(stations):
+                for kk, chan1 in enumerate(channels):
+                    for ll, chan2 in enumerate(channels):
+                        if jj < ii:
+                            # we don't double count stations
+                            continue
+                        if ll < kk:
+                            # don't double count channels
+                            continue
+                        if ii == jj and ll == kk:
+                            continue
+                        else:
+                            # get csd spectrogram
+                            ct += 1
+                            P12 = \
+                                self[station1][channels[kk]].csd_spectrogram(self[station2][channels[ll]],
+                                                                             stride=fftlength,
+                                                                             window='hann',
+                                                                             overlap=0,
+                                                                             nproc=nproc)
+                            # get covariance matrix entry
+                            n = np.mean(P12*np.conj(P12), 0) -\
+                                np.mean(P12,0)*np.mean(np.conj(P12), 0)
+
+                            # take mean across time
+                            cp = P12.mean(0)
+                            idx = \
+                                np.where(cp.frequencies.value == float(recovery_freq))[0]
+
+                            Y_of_t = P12[:,idx[0]-1:idx[0]+2].sum(axis=1).value
+                            # add up the frequency bin we want and adjacent ones
+                            # to account for spectral leakage
+                            p12 = cp[idx[0] - 1:idx[0] + 2].sum()
+                            n = n[idx[0]-1:idx[0]+2].sum()
+                            # reset g
+                            g = []
+                            shapes = []
+                            for rec, v in zip(rec_str, v_list):
+                                if rec is 's':
+                                    # get s orf
+                                    g1, g2, g1_s, g2_s = orf_picker(rec, set_channel_vector(channels[kk]),
+                                                                    set_channel_vector(channels[ll]),
+                                                                    station_locs[station1],
+                                                                    station_locs[station2], v,
+                                                                    float(recovery_freq), thetas=thetas, phis=phis,
+                                                                    epsilon=epsilon, alpha=alpha)
+                                    shapes.append(g1_s)
+                                    shapes.append(g2_s)
+                                    # append new, flattened, g onto the end
+                                    # of already generated on
+                                    if len(g) > 0:
+                                        g = np.vstack((g, g1, g2))
+                                    else:
+                                        g = np.vstack((g1, g2))
+                                else:
+                                    # get p or r orf
+                                    g1, g_s = orf_picker(rec, set_channel_vector(channels[kk]),
+                                                         set_channel_vector(channels[ll]), station_locs[station1],
+                                                         station_locs[station2],
+                                                         v, float(recovery_freq), thetas=thetas, phis=phis,
+                                                         epsilon=epsilon, alpha=alpha)
+                                    # append new, flattened, g onto the
+                                    # end of the one we've generated
+                                    try:
+                                        g = np.vstack((g, g1))
+                                    except ValueError:
+                                        g = g1
+                                    shapes.append(g_s)
+                            # generate or add to gammaT*gamma or gammaT*Y
+                            # vector
+                            if First:
+                                # for now for G:
+                                # columns = channels
+                                # rows = directions
+                                G = g
+                                Ys = Y_of_t.T
+                                N = [n.value]
+                                First = 0
+                            else:
+                                G = np.hstack((G, g))
+                                Ys = np.vstack((Ys, Y_of_t.T))
+                                N.append(n.value)
+        print Ys.shape
+        print ct
+        G = G.T
+        # estimate of power in given direction
+        Y = np.mean(Ys,1)
+        X = np.real(np.dot(G.T, Y))
+        N_inv = np.diag(np.ones(X.size))
+        N = np.diag(np.ones(X.size))
+        # covariance of estimate of power in each direction
+        # this is a covariance across directions
+        # ok now let's get an inverse of our covariance matrix
+        # explicit
+        # beam pattern function
+        BigGamma = np.real(np.dot(G.T, G))
+        inv_BigGamma = pinv2(BigGamma, rcond=1e-5)
+        # Now let's use this to get estimate of power in each direction
+        # where we're effectively deconvolving sky directions
+        # This is pseudo-inverse of beam pattern matrix
+        CleanMap = np.real(np.dot(inv_BigGamma, X))
+        # our map is the clean map
+        S = [CleanMap]
+        # the variance is roughly the fisher matrix
+        # times its inverse
+        sig2 = np.real(np.dot(BigGamma, np.dot(N_inv, BigGamma.T.conj())))
+        std_estimator = np.sqrt(sig2)
+        s = X - np.dot(BigGamma, S[0])
+        logL_n = -0.5 * np.dot(np.dot(X.conj().T, N_inv), X)
+        plt.figure()
+        plt.pcolormesh(N)
+        plt.colorbar()
+        plt.title('covariance')
+        plt.savefig('covariance')
+        plt.close()
+
+        plt.figure()
+        plt.pcolormesh(sig2)
+        plt.title('sigma square')
+        plt.colorbar()
+        plt.savefig('sigma_sq')
+        plt.close()
+
+        plt.figure()
+        plt.pcolormesh(BigGamma)
+        plt.colorbar()
+        plt.title('beam pattern')
+        plt.savefig('beam_pattern')
+        plt.close()
+        # separate result into proper maps
+        # with proper class
+        idx_low = 0
+        maps = {}
+        if thetas is None:
+            thetas = np.arange(3, 180, 6) * np.pi / 180
+        if phis is None:
+            phis = np.arange(3, 360, 6) * np.pi / 180
+        for ii, rec in enumerate(rec_str):
+            if rec is 's':
+                length = shapes[ii][0] * shapes[ii][1]
+                maps['s1'] = \
+                    RecoveryMap(np.real(S[0]).reshape(g.shape)[idx_low:idx_low + length].reshape(shapes[ii]),
+                                thetas, phis, 's1')
+                maps['sigma_sq_s1'] =\
+                    RecoveryMap(sig2.reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),thetas,
+                            phis, '\sigma^2_{s2}')
+                idx_low += length
+                maps['s2'] = \
+                    RecoveryMap(np.real(S[0]).reshape(g.shape)[idx_low:idx_low + length].reshape(shapes[ii]),
+                                thetas, phis, 's2')
+                maps['sigma_sq_s2'] =\
+                    RecoveryMap(np.real(np.diag(std_estimator)).reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),thetas,
+                            phis, '\sigma^2_{s2}')
+            else:
+                length = shapes[ii][0] * shapes[ii][1]
+                maps[rec] = \
+                    RecoveryMap(S[0].reshape(g.shape)[idx_low:idx_low + length].reshape(shapes[ii]),
+                                thetas, phis, rec)
+                maps['sigma_sq_'+rec] =\
+                    RecoveryMap(np.real(np.diag(std_estimator)).reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),thetas,
+                            phis, '\sigma_{'+rec+'}')
+                maps['SNR'] =\
+                    RecoveryMap(np.real(S[0]).reshape(g.shape)[idx_low:idx_low
+                        + length].reshape(shapes[ii])/np.real(np.diag(std_estimator)).reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),thetas,
+                            phis, 'SNR')
+
+
+                idx_low += length
+        return maps, phis, thetas
+    def recovery_matrices_pinv_healpy(self, rec_str, station_locs, recovery_freq,
+                          v_list, autocorrelations=True, epsilon=0.1, alpha=1000,
+                          channels=None, fftlength=2, overlap=1,
+                          nproc=1, iter_lim=1000, atol=1e-6, btol=1e-6):
+        """
+        Calculate model parameters, S, using pseudo-inverse of gamma matrix
+
+        Parameters
+        ----------
+        rec_str
+        station_locs
+        recovery_freq
+        v_list
+        autocorrelations
+        epsilon
+        alpha
+        channels
+        phis
+        thetas
+        fftlength
+        overlap
+        nproc
+        iter_lim
+        atol
+        btol
+
+        Returns
+        -------
+
+        """
+        stations = self.keys()
+        if channels is None:
+            channels = ['HHE', 'HHN', 'HHZ']
+        print channels
+        First = True
+        distances = []
+        for station in stations:
+            for station2 in stations:
+                diff_dir = np.asarray(station_locs[station]) -\
+                    np.asarray(station_locs[station2])
+                distances.append(np.sqrt(np.dot(diff_dir,diff_dir)))
+        maxd = np.max(distances)
+        ct = 0
+        for ii, station1 in enumerate(stations):
+            for jj, station2 in enumerate(stations):
+                for kk, chan1 in enumerate(channels):
+                    for ll, chan2 in enumerate(channels):
+                        if jj < ii:
+                            # we don't double count stations
+                            continue
+                        if ll < kk:
+                            # don't double count channels
+                            continue
+                        if ii == jj and ll == kk:
+                            continue
+                        else:
+                            # get csd spectrogram
+                            ct +=1
+                            P12 = \
+                                self[station1][channels[kk]].csd_spectrogram(self[station2][channels[ll]],
+                                                                             stride=fftlength,
+                                                                             window='hann',
+                                                                             overlap=0,
+                                                                             nproc=nproc)
+                            # get covariance matrix entry
+                            n = np.mean(P12*np.conj(P12), 0) -\
+                                np.mean(P12,0)*np.mean(np.conj(P12), 0)
+
+                            # take mean across time
+                            cp = P12.mean(0)
+                            idx = \
+                                np.where(cp.frequencies.value == float(recovery_freq))[0]
+
+                            Y_of_t = P12[:,idx[0]-1:idx[0]+2].sum(axis=1).value
+                            # add up the frequency bin we want and adjacent ones
+                            # to account for spectral leakage
+                            p12 = cp[idx[0] - 1:idx[0] + 2].sum()
+                            n = n[idx[0]-1:idx[0]+2].sum()
+                            # reset g
+                            g = []
+                            shapes = []
+                            ang_shapes = []
+                            thetas = []
+                            phis = []
+                            for rec, v in zip(rec_str, v_list):
+                                rf = float(recovery_freq)
+                                spot_size = v/(2*maxd*rf)
+                                npix = (4 * np.pi / (spot_size **
+                                    2))*np.sqrt(len(self.keys()))
+                                nside = int(2 ** round(np.log2(round((int(npix)+1) **
+                                    (0.5)))))
+                                nside=4
+                                npix2 = hp.nside2npix(nside)
+                                thetas_temp = np.zeros(npix2)
+                                phis_temp = np.zeros(npix2)
+                                # get angles
+                                for mm in range(npix2):
+                                    thetas_temp[mm], phis_temp[mm] =\
+                                        hp.pixelfunc.pix2ang(nside,mm)
+                                if rec is 's':
+                                    # get s orf
+                                    g1, g2, g1_s, g2_s = orf_picker(rec, set_channel_vector(channels[kk]),
+                                                                    set_channel_vector(channels[ll]),
+                                                                    station_locs[station1],
+                                                                    station_locs[station2], v,
+                                                                    float(recovery_freq),
+                                                                    thetas=thetas_temp,
+                                                                    phis=phis_temp,
+                                                                    epsilon=epsilon,
+                                                                    alpha=alpha,
+                                                                    healpy=True)
+                                    shapes.append(g1_s)
+                                    shapes.append(g2_s)
+                                    # append new, flattened, g onto the end
+                                    # of already generated on
+                                    if len(g) > 0:
+                                        g = np.vstack((g, g1, g2))
+                                    else:
+                                        g = np.vstack((g1, g2))
+                                    ang_shapes.append(len(phis_temp))
+                                else:
+                                    # get p or r orf
+                                    g1, g_s = orf_picker(rec, set_channel_vector(channels[kk]),
+                                                         set_channel_vector(channels[ll]), station_locs[station1],
+                                                         station_locs[station2],
+                                                         v,
+                                                         float(recovery_freq),
+                                                         thetas=thetas_temp,
+                                                         phis=phis_temp,
+                                                         epsilon=epsilon,
+                                                         alpha=alpha,
+                                                         healpy=True)
+                                    # append new, flattened, g onto the
+                                    # end of the one we've generated
+                                    try:
+                                        g = np.vstack((g, g1))
+                                    except ValueError:
+                                        g = g1
+                                    shapes.append(g_s)
+                                    ang_shapes.append(len(phis_temp))
+                            # generate or add to gammaT*gamma or gammaT*Y
+                            # vector
+                            if First:
+                                # for now for G:
+                                # columns = channels
+                                # rows = directions
+                                thetas = thetas_temp
+                                phis = phis_temp
+                                G = g
+                                Ys = Y_of_t.T
+                                N = [n.value]
+                                First = 0
+                            else:
+                                phis = np.hstack((phis, phis_temp))
+                                thetas = np.hstack((thetas, thetas_temp))
+                                G = np.hstack((G, g))
+                                Ys = np.vstack((Ys, Y_of_t.T))
+                                N.append(n.value)
+                            print phis.size
+                            print phis_temp.size
+        print ct
+        print Ys.shape
+###########################
+###########################
+###########################
+###########################
+        G = G.T
+        # estimate of power in given direction
+        Y = np.mean(Ys,1)
+        X = np.real(np.dot(G.T, Y))
+        N_inv = np.diag(np.ones(X.size))
+        N = np.diag(np.ones(X.size))
+        # covariance of estimate of power in each direction
+        # this is a covariance across directions
+        # ok now let's get an inverse of our covariance matrix
+        # explicit
+        # beam pattern function
+        BigGamma = np.real(np.dot(G.T, G))
+        inv_BigGamma = pinv2(BigGamma, rcond=1e-5)
+        # Now let's use this to get estimate of power in each direction
+        # where we're effectively deconvolving sky directions
+        # This is pseudo-inverse of beam pattern matrix
+        CleanMap = np.real(np.dot(inv_BigGamma, X))
+        # our map is the clean map
+        S = [CleanMap]
+        # the variance is roughly the fisher matrix
+        # times its inverse
+        sig2 = np.real(np.dot(BigGamma, np.dot(N_inv, BigGamma.T.conj())))
+        std_estimator = np.sqrt(sig2)
+        s = X - np.dot(BigGamma, S[0])
+        logL_n = -0.5 * np.dot(np.dot(X.conj().T, N_inv), X)
+###########################
+###########################
+###########################
+###########################
+        idx_low = 0
+        shape_idx_low = 0
+        maps = {}
+        print 'STOP'
+        print phis.shape
+        print thetas.shape
+        print ang_shapes
+        for ii, rec in enumerate(rec_str):
+            phis_new = phis[shape_idx_low:shape_idx_low + ang_shapes[ii]]
+            thetas_new = thetas[shape_idx_low:shape_idx_low + ang_shapes[ii]]
+            if rec is 's':
+                length = shapes[ii][0]
+                maps['s1'] = \
+                    RecoveryMap(np.real(S[0]).reshape(g.shape)[idx_low:idx_low + length].reshape(shapes[ii]),
+                            thetas_new, phis_new, 's1')
+                maps['sigma_sq_s1'] =\
+                    RecoveryMap(sig2.reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),thetas_new,
+                            phis_new, '\sigma^2_{s2}')
+                idx_low += length
+                maps['s2'] = \
+                    RecoveryMap(np.real(S[0]).reshape(g.shape)[idx_low:idx_low + length].reshape(shapes[ii]),
+                            thetas_new, phis_new, 's2')
+                maps['sigma_sq_s2'] =\
+                    RecoveryMap(np.real(np.diag(std_estimator)).reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),thetas_new,
+                            phis_new, '\sigma^2_{s2}')
+            else:
+                length = shapes[ii][0]
+                maps[rec] = \
+                    RecoveryMap(S[0].reshape(g.shape)[idx_low:idx_low + length].reshape(shapes[ii]),
+                            thetas_new, phis_new, rec)
+                maps['sigma_sq_'+rec] =\
+                        RecoveryMap(np.real(np.diag(std_estimator)).reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),
+                                thetas_new,
+                                phis_new, '\sigma_{'+rec+'}')
+                maps['SNR'] =\
+                    RecoveryMap(np.real(S[0]).reshape(g.shape)[idx_low:idx_low
+                        +
+                        length].reshape(shapes[ii])/np.real(np.diag(std_estimator)).reshape(g.shape)[idx_low:idx_low+length].reshape(shapes[ii]),thetas_new,
+                        phis_new, 'SNR')
+
+                idx_low += length
+                shape_idx_low += ang_shapes[ii]
         return maps, phis, thetas

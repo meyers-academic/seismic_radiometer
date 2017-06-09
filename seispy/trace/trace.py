@@ -19,7 +19,10 @@ class Trace(TimeSeries):
         """
         stats = obspy.core.trace.Stats()
         stats['sampling_rate'] = self.sample_rate.value
-        stats['location'] = self.get_location()
+        try:
+            stats['location'] = self.get_location()
+        except:
+            pass
         stats['starttime'] = self.times.value[0]
         stats['npts'] = self.times.value.size
         stats['channel'] = self.channel.name.split(':')[1]
@@ -162,7 +165,7 @@ class Trace(TimeSeries):
         # set up and return new Trace object
         new_trace = Trace(new_ts.value, sample_rate=self.sample_rate,
                           name=self.name, epoch=self.epoch,
-                          unit=self.unit)
+                          unit=self.unit, channel=new_ts.channel)
         return new_trace
 
     def vel2disp(self):

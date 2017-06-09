@@ -31,8 +31,16 @@ class StationArray(OrderedDict):
         """
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
+        depths = []
         for key in self.keys():
-            ax.scatter(self[key][0], self[key][1], self[key][2])
+            depths.append(self[key][2])
+        maxd = max(depths)
+        origin0 = self[key][0]
+        origin1 = self[key][1]
+
+        for key in self.keys():
+            ax.scatter(self[key][0] - origin0, self[key][1] - origin1,
+                    self[key][2] - maxd)
         ax.set_zlabel('Depth')
         ax.set_ylabel('North')
         ax.set_xlabel('East')
@@ -125,5 +133,5 @@ def homestake(keylist=None):
     elif keylist is None:
         keylist = xyz_list.keys()
     for key in keylist:
-        stations[key] = xyz_list[key]
+        stations[key] = np.asarray(xyz_list[key])
     return stations

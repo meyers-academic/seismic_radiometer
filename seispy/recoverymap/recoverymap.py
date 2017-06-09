@@ -14,10 +14,10 @@ class RecoveryMap(object):
         self.thetas = thetas
         self.phis = phis
         self.maptype = maptype
-        if self.maptype=='r':
-            idx = np.where(thetas==np.pi / 2.)
-            self.data = self.data[:,idx[0]]
-            self.thetas=np.asarray([np.pi / 2.])
+        #if self.maptype=='r':
+        #    idx = np.where(thetas==np.pi / 2.)
+        #    self.data = self.data[:,idx[0]]
+        #    self.thetas=np.asarray([np.pi / 2.])
 
     def get_contour(self, conf):
         """
