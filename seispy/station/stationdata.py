@@ -463,7 +463,7 @@ class SeismometerArray(OrderedDict):
         p_data = SeismometerArray._gen_pwave(locations, amplitude, phi, theta,
                                              frequency, duration, phase=phase, Fs=Fs, c=c
                                              )
-        self._add_another_seismometer_array(p_data)
+        self.add_another_seismometer_array(p_data)
 
     def add_s_wave(self, amplitude, phi, theta, psi, frequency,
                    duration, phase=0, Fs=100, c=3000):
@@ -496,7 +496,7 @@ class SeismometerArray(OrderedDict):
         s_data = SeismometerArray._gen_swave(locations, amplitude, phi,
                                              theta, psi, frequency, duration, phase=phase, Fs=Fs, c=c
                                              )
-        self._add_another_seismometer_array(s_data)
+        self.add_another_seismometer_array(s_data)
 
     def add_r_wave(self, amplitude, phi, theta, epsilon, alpha, frequency,
                    duration, phase=0, Fs=100, c=200):
@@ -531,7 +531,7 @@ class SeismometerArray(OrderedDict):
         r_data = SeismometerArray._gen_rwave(locations, amplitude, phi,
                                              theta, epsilon, alpha, frequency, duration, phase=phase, Fs=Fs, c=c
                                              )
-        self._add_another_seismometer_array(r_data)
+        self.add_another_seismometer_array(r_data)
 
     @classmethod
     def initialize_all_good(cls, location_dict, duration, chans_type='useful',
@@ -583,9 +583,9 @@ class SeismometerArray(OrderedDict):
         duration = self[sensors[0]]['HHE'].size / Fs
         WN_array = SeismometerArray._gen_white_gaussian_noise(sensors, psd_amp,
                                                               Fs, duration, segdur=segdur, seed=seed)
-        self._add_another_seismometer_array(WN_array)
+        self.add_another_seismometer_array(WN_array)
 
-    def _add_another_seismometer_array(self, other):
+    def add_another_seismometer_array(self, other):
         """
         Internal method for adding two arrays
         that have all of the same station names.
@@ -827,10 +827,8 @@ class SeismometerArray(OrderedDict):
                         if jj < ii:
                             # we don't double count stations
                             continue
-                        if ll < kk:
+                        if ii==jj and ll < kk:
                             # don't double count channels
-                            continue
-                        if ii == jj and ll == kk:
                             continue
                         else:
                             # get csd spectrogram
@@ -960,6 +958,29 @@ class SeismometerArray(OrderedDict):
                 distances.append(np.sqrt(np.dot(diff_dir,diff_dir)))
         maxd = np.max(distances)
         First = 1
+        npix2 = hp.nside2npix(nside)
+        # get theta and phi
+        thetas_temp = np.zeros(npix2)
+        phis_temp = np.zeros(npix2)
+        pix = np.arange(npix2)
+
+        thetas_temp, phis_temp =\
+        hp.pixelfunc.pix2ang(nside,pix)
+        npairs = 0
+        # get number of pairs of stations
+        for ii, station1 in enumerate(stations):
+            for jj, station2 in enumerate(stations):
+                for kk, chan1 in enumerate(channels):
+                    for ll, chan2 in enumerate(channels):
+                        if jj < ii:
+                            # we don't double count stations
+                            continue
+                        if ii==jj and ll < kk:
+                            # don't double count channels
+                            continue
+                        npairs += 1
+#        G = np.zeros((npix2, npairs))
+        ct = 0
         for ii, station1 in enumerate(stations):
             for jj, station2 in enumerate(stations):
                 for kk, chan1 in enumerate(channels):
@@ -981,13 +1002,6 @@ class SeismometerArray(OrderedDict):
                             # get diffraction limited spot size
                             # get nside for healpy based on npix (taken up to
                             # the next power of two)
-                            npix2 = hp.nside2npix(nside)
-                            # get theta and phi
-                            thetas_temp = np.zeros(npix2)
-                            phis_temp = np.zeros(npix2)
-                            for mm in range(npix2):
-                                thetas_temp[mm], phis_temp[mm] =\
-                                    hp.pixelfunc.pix2ang(nside,mm)
                             # get overlap reduction functions now
                             if rec_type is 's':
                                 # get s orf
@@ -1026,13 +1040,11 @@ class SeismometerArray(OrderedDict):
                                 thetas = thetas_temp
                                 shapes = [g_s]
                             if First:
-                                # for now for G:
-                                # columns = channels
-                                # rows = directions
                                 G = g
                                 First = 0
                             else:
-                                G = np.hstack((G, g))
+                                G = np.hstack((G,g))
+                            ct += 1
         return G, phis, thetas, shapes
 
     def recovery_matrices_pinv(self, rec_str, station_locs, recovery_freq,

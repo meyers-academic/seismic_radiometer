@@ -167,7 +167,11 @@ def orf_p_directional2(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetas=None,
     OmgY = np.sin(THETAS)*np.sin(PHIS)
     OmgZ = (np.cos(THETAS))
     Omg_shape = OmgX.shape
-    OMEGA = np.vstack((OmgX.flatten(), OmgY.flatten(), OmgZ.flatten())).T
+    s = OmgX.size
+    OMEGA = np.zeros((s,3))
+    OMEGA[:,0]= OmgX.flatten()
+    OMEGA[:,1] = OmgY.flatten()
+    OMEGA[:,2] = OmgZ.flatten()
     dt = calc_travel_time2(x_vec, OMEGA, vp)
     dt = dt.reshape(Omg_shape)
     sf = ((OmgX*ch1_vec[0] +
@@ -229,7 +233,7 @@ def orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetas=None,
     OmgZ = (np.cos(THETAS))
     Omg_shape = OmgX.shape
     OMEGA = np.vstack((OmgX.flatten(), OmgY.flatten(), OmgZ.flatten())).T
-    dt = calc_travel_time(x_vec, OMEGA, vp)
+    dt = calc_travel_time2(x_vec, OMEGA, vp)
     dt = dt.reshape(Omg_shape)
     sf = ((OmgX*ch1_vec[0] +
             OmgY*ch1_vec[1] + OmgZ*ch1_vec[2]) * (OmgX*ch2_vec[0] +
@@ -302,7 +306,7 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
         (ChiX*ch2_vec[0] +ChiY*ch2_vec[1] + ChiZ*ch2_vec[2])
     omg_shape = OmgX.shape
     OMEGA = np.vstack((OmgX.flatten(), OmgY.flatten(), OmgZ.flatten())).T
-    dt = calc_travel_time(x_vec, OMEGA, vs).reshape(omg_shape)
+    dt = calc_travel_time2(x_vec, OMEGA, vs).reshape(omg_shape)
     gamma1 = sf1 * np.exp(-2*np.pi*1j*f*dt)
     gamma2 = sf2 * np.exp(-2*np.pi*1j*f*dt)
     return gamma1,gamma2,phis,thetas
@@ -371,7 +375,7 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, 
 
     omg_shape = OmgX.shape
     OMEGA = np.vstack((OmgX.flatten(), OmgY.flatten(), OmgZ.flatten())).T
-    dt = calc_travel_time(x_vec, OMEGA, vr).reshape(omg_shape)
+    dt = calc_travel_time2(x_vec, OMEGA, vr).reshape(omg_shape)
     gamma = sf1*np.conj(sf2)*np.exp(-2*np.pi*1j*f*dt) * np.exp(-(det1_loc[2] +
         det2_loc[2]) / float(alpha))
     return gamma,phis,thetas

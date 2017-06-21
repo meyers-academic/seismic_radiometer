@@ -3,7 +3,6 @@ import numpy as np
 from matplotlib import use,rc
 use('agg')
 rc('text',usetex=True)
-import matplotlib.pyplot as plt
 from seispy.trace import Trace
 import astropy.units as u
 import os
