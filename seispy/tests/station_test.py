@@ -1,11 +1,12 @@
 from __future__ import division
 import matplotlib
-
 matplotlib.use('agg')
+import matplotlib.pyplot as plt
 import unittest
 from ..station import *
 import numpy.testing as npt
-
+from seispy.station.stationdata import SeismometerArray, Seismometer
+import obspy
 
 class TestStation(unittest.TestCase):
     def test_spiral(self):
@@ -30,6 +31,20 @@ class TestStation(unittest.TestCase):
         arr = homestake(['DEAD', 'YATES'])
         # noinspection PyTypeChecker,PyTypeChecker
         npt.assert_almost_equal(len(arr.keys()), 2)
+
+    def test_to_obspy(self):
+        """
+
+        Returns
+        -------
+
+        """
+        stations = homestake()
+        arr = SeismometerArray.initialize_all_good(stations, 100, chans_type='fast_chans')
+        stream = arr.to_obspy()
+        print stream[0].stats
+        self.assertTrue(isinstance(stream, obspy.core.stream.Stream))
+
 
 
 if __name__ == "__main__":

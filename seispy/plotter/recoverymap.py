@@ -5,12 +5,12 @@ from gwpy.plotter.core import Plot
 import numpy as np
 from matplotlib.projections import register_projection
 from matplotlib.projections import AitoffAxes
+from plot import FixedMollweideAxes
 
 try:
     from mpl_toolkits.axes_grid1 import make_axes_locatable
 except ImportError:
     from mpl_toolkits.axes_grid import make_axes_locatable
-
 
 class RecoveryMapAxes(AitoffAxes):
     """
@@ -31,7 +31,7 @@ class RecoveryMapPlot(Plot):
     recovery map plot
     """
     _DefaultAxesClass = RecoveryMapAxes
-    def __init__(self, recovery_map, **kwargs):
+    def __init__(self, recovery_map, contour=True, **kwargs):
         super(RecoveryMapPlot, self).__init__(**kwargs)
         dtheta = recovery_map.thetas[1] - recovery_map.thetas[0]
         dphi = recovery_map.phis[1] - recovery_map.phis[0]
@@ -51,6 +51,7 @@ class RecoveryMapPlot(Plot):
         ax.tick_params(axis='x',colors='white')
         cbar = self.add_colorbar(label=r'amplitude [$\textrm{m}^2$]')
         cbar.ax.tick_params(labelsize=10)
-        ax.contour(recovery_map.phis - np.pi - dphi/2, np.pi / 2 - recovery_map.thetas + dtheta / 2,
+        self.cbar=cbar
+        if contour:
+            ax.contour(recovery_map.phis - np.pi - dphi/2, np.pi / 2 - recovery_map.thetas + dtheta / 2,
                    conf_map.T, colors='k', linewidth=4, levels=[0])
-

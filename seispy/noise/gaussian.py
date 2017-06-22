@@ -4,6 +4,8 @@ from gwpy.timeseries import TimeSeries
 from gwpy.frequencyseries import FrequencySeries
 import astropy.units as u
 import numpy as np
+from datetime import datetime
+
 
 def noise_from_psd(length, sample_rate, psd, seed=0, name=None, unit=u.m):
     """ Create noise with a given psd.
@@ -31,9 +33,13 @@ def noise_from_psd(length, sample_rate, psd, seed=0, name=None, unit=u.m):
     if name is None:
         name='noise'
     length *=sample_rate
+    length = int(length)
 
-    noise_ts = TimeSeries(np.zeros(length),
+    noise_ts = TimeSeries(np.zeros(int(length)),
             sample_rate=sample_rate, name=name, unit=unit)
+    if seed == 0 or seed is None:
+        now = datetime.now()
+        seed = now.year+now.day+now.hour+now.minute+now.second+now.microsecond
 
     randomness = lal.gsl_rng("ranlux", seed)
 
@@ -47,17 +53,18 @@ def noise_from_psd(length, sample_rate, psd, seed=0, name=None, unit=u.m):
     psd.data.data[n-1] = 0
     segment = TimeSeries(np.zeros(N), sample_rate=sample_rate).to_lal()
     length_generated = 0
+    newdat=[]
 
     SimNoise(segment, 0, psd, randomness)
     while (length_generated < length):
         if (length_generated + stride) < length:
-            noise_ts.data[length_generated:length_generated+stride] = segment.data.data[0:stride]
+            newdat.extend(segment.data.data[:stride])
         else:
-            noise_ts.data[length_generated:length] = segment.data.data[0:length-length_generated]
+            newdat.extend(segment.data.data[0:length-length_generated])
 
         length_generated += stride
         SimNoise(segment,stride, psd, randomness)
-    return noise_ts
+    return TimeSeries(newdat, sample_rate=sample_rate, name=name, unit=unit)
 
 def noise_from_psd2(length, stride, sample_rate, psd, seed=0, name=None,
         unit=u.m):

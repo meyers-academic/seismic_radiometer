@@ -6,7 +6,7 @@ def read_config(cfile):
     params = read_ini(cfile)
     params = try_and_set(params, 'Recovery','phimesh',10)
     params = try_and_set(params, 'Recovery','thetamesh',10)
-    params = try_and_set(params, 'Recovery','segdur',100)
+    params = try_and_set(params, 'Recovery','segdur',10)
     params = try_and_set(params, 'Recovery','duration',100)
     params = try_and_set(params, 'Recovery','velocities',special='comma_list')
     params = try_and_set(params, 'Recovery','frequency')
