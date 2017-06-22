@@ -15,6 +15,38 @@ class StationArray(OrderedDict):
     def __init__(self):
         super(StationArray, self).__init__()
 
+    def shift_origin(self,origin=None):
+        """
+        shift the origin of the StationArray (changes StationArray in place)
+
+        Parameters
+        ----------
+        origin: name of station to use as origin.
+           if no origin is specified, this will use the first
+           origin in the list.
+        """
+        # if there are no elements, just return
+        if len(self)==0:
+            return
+        # if origin is none, get first element of array and call that the origin
+        if origin==None:
+            origin=self.keys()[0]
+            origin_x,origin_y,origin_z=self[origin][0],self[origin][1],self[origin][2]
+            origin_coords=[origin_x,origin_y,origin_z]
+        # otherwise, get the coordinates of the user specified origin
+        else:
+            try:
+                origin_x,origin_y,origin_z=self[origin][0],self[origin][1],self[origin][2]
+                origin_coords=[origin_x,origin_y,origin_z]
+            except:
+                print 'Unknown station used as origin'
+                raise
+        # shift coordinates of all array elements to the new origin
+        for station in self.keys():
+            for ii in range(3):
+                self[station][ii]=self[station][ii]-origin_coords[ii]
+                
+
     def plot(self):
         """
         plot station array
@@ -47,7 +79,7 @@ class StationArray(OrderedDict):
         return plt
 
 
-def spiral(N, radius=1000, height=100, n_per_turn=10, offset=0):
+def spiral(N, radius=1000, height=100, n_per_turn=10, offset=0, origin=None):
     """
     return a spiral array pattern
 
@@ -61,6 +93,8 @@ def spiral(N, radius=1000, height=100, n_per_turn=10, offset=0):
         height step from one station to the next.
     n_per_turn : `float`, optional
         number of stations in a circle (when projected onto z-axis)
+    origin: `int` optional
+        station to use as an origin. defaults to using first station in list.
 
     Returns
     -------
@@ -69,12 +103,15 @@ def spiral(N, radius=1000, height=100, n_per_turn=10, offset=0):
     """
     stations = StationArray()
     for ii in range(N):
-        stations[ii] = offset + radius * np.array([np.cos((1 / n_per_turn) * 2 * np.pi * ii),
-                                                   np.sin((1 / n_per_turn) * 2 * np.pi * ii), ii * height / radius])
+        stations[ii] = offset + radius * np.array([np.cos((1/n_per_turn)*2*np.pi*ii),
+            np.sin((1/n_per_turn)*2*np.pi*ii), ii*height/radius])
+
+    # shift origin
+    stations.shift_origin(origin)
+
     return stations
 
-
-def homestake(keylist=None):
+def homestake(keylist=None,origin=None):
     """
     Return a dict with homestake array
 
@@ -85,6 +122,8 @@ def homestake(keylist=None):
         is to return all stations. Will also return all if 'All' is given.
         Will return surface stations of 'surface' is given.
         Will return underground stations if 'underground' is given.
+    origin : `str`, optional
+        station which will be used as origin (None defaults to using first element in array)
     """
     stations = StationArray()
     xyz_list = {'DEAD': [599316.496208, 4915135.795515, 1498],
@@ -133,5 +172,9 @@ def homestake(keylist=None):
     elif keylist is None:
         keylist = xyz_list.keys()
     for key in keylist:
-        stations[key] = np.asarray(xyz_list[key])
+        stations[key]=xyz_list[key]
+
+    # shift origin
+    stations.shift_origin(origin)
+
     return stations

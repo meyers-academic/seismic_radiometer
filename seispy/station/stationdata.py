@@ -1490,3 +1490,118 @@ class SeismometerArray(OrderedDict):
                 idx_low += length
                 shape_idx_low += ang_shapes[ii]
         return maps, phis, thetas
+
+   def get_gamma_matrix_healpy(self, rec_type, station_locs, recovery_freq,
+                          v, autocorrelations=True, epsilon=0.1, alpha=1000,
+                          channels=None, fftlength=2, overlap=1,
+                          nproc=1, iter_lim=1000, atol=1e-6, btol=1e-6,
+                          nside=8):
+        """TODO: Docstring for get_gamma_matrices.
+        Returns
+        -------
+        TODO
+
+        """
+        stations = self.keys()
+        if channels is None:
+            channels = ['HHE', 'HHN', 'HHZ']
+        First = True
+        distances = []
+        for station in stations:
+            for station2 in stations:
+                diff_dir = np.asarray(station_locs[station]) -\
+                    np.asarray(station_locs[station2])
+                distances.append(np.sqrt(np.dot(diff_dir,diff_dir)))
+        maxd = np.max(distances)
+        First = 1
+        npix2 = hp.nside2npix(nside)
+        # get theta and phi
+        thetas_temp = np.zeros(npix2)
+        phis_temp = np.zeros(npix2)
+        pix = np.arange(npix2)
+
+        thetas_temp, phis_temp =\
+        hp.pixelfunc.pix2ang(nside,pix)
+        npairs = 0 
+        # get number of pairs of stations (AAM: this should be m*(m+1)/2 where m=Nstations*Nchannels )
+        for ii, station1 in enumerate(stations):
+            for jj, station2 in enumerate(stations):
+                for kk, chan1 in enumerate(channels):
+                    for ll, chan2 in enumerate(channels):
+                        if jj < ii:
+                            # we don't double count stations
+                            continue
+                        if ii==jj and ll < kk:
+                            # don't double count channels
+                            continue
+                        npairs += 1
+#        G = np.zeros((npix2, npairs))
+        ct = 0
+        for ii, station1 in enumerate(stations):
+            for jj, station2 in enumerate(stations):
+                for kk, chan1 in enumerate(channels):
+                    for ll, chan2 in enumerate(channels):
+                        if jj < ii:
+                            # we don't double count stations
+                            continue
+                        # AAM: commented out below (bug)
+                        #if ll < kk:
+                        #    # don't double count channels
+                        #    continue
+                        #if ii == jj and ll == kk:
+                        if ii == jj and ll < kk:
+                            continue
+                        else:
+                            phis = []
+                            thetas = []
+                            # get gamma matrix
+                            # convert freq to float
+                            rf = float(recovery_freq)
+                            # get diffraction limited spot size
+                            # get nside for healpy based on npix (taken up to
+                            # the next power of two)
+                            # get overlap reduction functions now
+                            if rec_type is 's':
+                                # get s orf
+                                g1, g2, g1_s, g2_s = orf_picker(rec_type, set_channel_vector(channels[kk]),
+                                                                set_channel_vector(channels[ll]),
+                                                                station_locs[station1],
+                                                                station_locs[station2], v,
+                                                                float(recovery_freq),
+                                                                thetas=thetas_temp,
+                                                                phis=phis_temp,
+                                                                epsilon=epsilon,
+                                                                alpha=alpha,
+                                                                healpy=True)
+                                # append new, flattened, g onto the end
+                                # of already generated on
+                                g = np.vstack((g1, g2))
+                                shapes = [g1_s, g2_s]
+                                phis = np.hstack((phis_temp, phis_temp))
+                                thetas = np.hstack((thetas_temp, thetas_temp))
+                            else:
+                                # get p or r orf
+                                g1, g_s = orf_picker(rec_type, set_channel_vector(channels[kk]),
+                                                     set_channel_vector(channels[ll]), station_locs[station1],
+                                                     station_locs[station2],
+                                                     v,
+                                                     float(recovery_freq),
+                                                     thetas=thetas_temp,
+                                                     phis=phis_temp,
+                                                     epsilon=epsilon,
+                                                     alpha=alpha,
+                                                     healpy=True)
+                                # append new, flattened, g onto the
+                                # end of the one we've generated
+                                g = g1
+                                phis = phis_temp
+                                thetas = thetas_temp
+                                shapes = [g_s]
+                            if First:
+                                G = g
+                                First = 0
+                            else:
+                                G = np.hstack((G,g))
+                            ct += 1
+        return G, phis, thetas, shapes
+
