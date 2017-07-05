@@ -311,7 +311,7 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
     gamma2 = sf2 * np.exp(-2*np.pi*1j*f*dt)
     return gamma1,gamma2,phis,thetas
 
-def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, f,
+def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f, params_file,
         thetas=None,phis=None, healpy=False):
     """
     Calculate r-wave overlap reduction function between
@@ -326,10 +326,18 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, 
         location of first sensor
     det2_loc : `list-like`
         location of second sensor
-    vr : `float`
-        velocity of s-wave
     f : `float`
         frequency at which you would like the orf
+    params_file: `string`
+        file name containing parameters for r wave eigenfunctions
+        should be stored as a python dict giving values for constants in
+        equation 6.10 of Tanner's thesis https://conservancy.umn.edu/handle/11299/182183
+    thetas: `list-like`
+        OPTIONAL: list of theta coordinate values on which to evaluate ORF
+    phis: `list-like`
+        OPTIONAL: list of phi coordinates at which to evaluate ORF
+    healpy: `boolean`
+        OPTIONAL: use healpix? NOTE: if this is true, thetas and phis should also be given
 
     Returns
     -------
@@ -340,6 +348,41 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, 
     thetas : `numpy.ndarray`
         theta values
     """
+    # normalize channel 1 and 2 vectors
+    ch1_vec=ch1_vec/np.sqrt(np.dot(ch1_vec,ch1_vec))
+    ch2_vec=ch2_vec/np.sqrt(np.dot(ch2_vec,ch2_vec))
+
+    # read parameters for eigenfunction
+    # assumes bi-exponential model
+    # given in equations 40,41 of seismic radiometer note 
+    # https://zzz.physics.umn.edu/_media/groups/homestake/analysis/directional_analysis_v4.pdf
+    # should be stored as a python dict, with values for these parameters
+    # r1 = C1 exp(-a1*k*z) + C2 exp(-a2*k*z)
+    # r2 = C3 exp(-a3*k*z) + C4 exp(-a4*k*z)
+    # with k = omega/v = 2*pi*f/v
+    params=np.load(params_file)[0]
+    C1=params['C1']
+    C2=params['C2']
+    C3=params['C3']
+    C4=params['C4']
+    a1=params['a1']
+    a2=params['a2']
+    a3=params['a3']
+    a4=params['a4']
+    v=params['v']
+
+    z1=det1_loc[2]
+    z2=det2_loc[2]
+    k=2*np.pi*f/v
+
+    r1=C1*np.exp(-a1*k*z1)+C2*np.exp(-a2*k*z1)
+    r2=C3*np.exp(-a3*k*z2)+C4*np.exp(-a4*k*z2)
+
+#    r11=C1*np.exp(-a1*k*z1)
+#    r12=C2*np.exp(-a2*k*z1)
+#    r21=C3*np.exp(-a3*k*z2)
+#    r22=C4*np.exp(-a4*k*z2)
+
     # get separation vector
     x_vec = np.array(det1_loc) - np.array(det2_loc)
     # make it a unit vector
@@ -353,31 +396,22 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, 
     else:
         THETAS, PHIS = np.meshgrid(thetas, phis)
     # much faster to vectorize things
+    # unit vector in direction of wave propagation
+    # NOTE: OmgZ should be 0 for surface wave, but we'll allow it for now
     OmgX = np.sin(THETAS)*np.cos(PHIS)
     OmgY = np.sin(THETAS)*np.sin(PHIS)
     OmgZ = (np.cos(THETAS))
-    # only theta = pi/2 sticks around, okay? ok.
-    #OmgX[THETAS < np.pi / 2] = 0
-    #OmgY[THETAS < np.pi / 2] = 0
-    #OmgZ[THETAS < np.pi / 2] = 0
-    #OmgX[THETAS > np.pi / 2] = 0
-    #OmgY[THETAS > np.pi / 2] = 0
-    #OmgZ[THETAS > np.pi / 2] = 0
-    # R-wave stuff
-    R1 = np.cos(PHIS)
-    R2 = np.sin(PHIS)
-    R3 = np.exp(1j * np.pi / 2) * epsilon
-    # get vector perp to Omega
-    # take cross product of omega and psi to
-    # get third vector
-    sf1 = (R1*ch1_vec[0] + R2*ch1_vec[1] + R3*ch1_vec[2])
-    sf2 = (R1*ch2_vec[0] + R2*ch2_vec[1] + R3*ch2_vec[2])
 
     omg_shape = OmgX.shape
     OMEGA = np.vstack((OmgX.flatten(), OmgY.flatten(), OmgZ.flatten())).T
+
     dt = calc_travel_time2(x_vec, OMEGA, vr).reshape(omg_shape)
-    gamma = sf1*np.conj(sf2)*np.exp(-2*np.pi*1j*f*dt) * np.exp(-(det1_loc[2] +
-        det2_loc[2]) / float(alpha))
+
+    sf1 = r1*np.dot(OMEGA,ch1_vec)+r2*np.exp(1j*np.pi/2)*ch1_vec[2]
+    sf2 = r1*np.dot(OMEGA,ch1_vec)+r2*np.exp(1j*np.pi/2)*ch2_vec[2]
+
+    gamma = sf1*np.conj(sf2)*np.exp(-2*np.pi*1j*f*dt)
+
     return gamma,phis,thetas
 
 def ccStatReadout_s_wave(Y, sigma, ch1_vec, ch2_vec, det1_loc, det2_loc, vs, thetamesh=1,phimesh=1):
