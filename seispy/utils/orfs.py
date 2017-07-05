@@ -407,8 +407,8 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f, params_file,
 
     dt = calc_travel_time2(x_vec, OMEGA, v).reshape(omg_shape)
 
-    sf1 = r1*np.dot(OMEGA,ch1_vec)+r2*np.exp(1j*np.pi/2)*ch1_vec[2]
-    sf2 = r1*np.dot(OMEGA,ch1_vec)+r2*np.exp(1j*np.pi/2)*ch2_vec[2]
+    sf1 = (r1*np.dot(OMEGA,ch1_vec)+r2*np.exp(1j*np.pi/2)*ch1_vec[2]).reshape(omg_shape)
+    sf2 = (r1*np.dot(OMEGA,ch1_vec)+r2*np.exp(1j*np.pi/2)*ch2_vec[2]).reshape(omg_shape)
 
     gamma = sf1*np.conj(sf2)*np.exp(-2*np.pi*1j*f*dt)
 
