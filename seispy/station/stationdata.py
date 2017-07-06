@@ -399,8 +399,8 @@ class SeismometerArray(OrderedDict):
         v=rwave_params['v']
 
         # sines and cosines of source direction        
-        if theta ~= pi/2:
-            print 'WARNING: Injecting R-Wave and theta~=pi/2'
+        if theta != pi/2:
+            print 'WARNING: Injecting R-Wave and theta!=pi/2'
         cphi = np.cos(phi)
         sphi = np.sin(phi)
         ctheta = np.cos(theta)
