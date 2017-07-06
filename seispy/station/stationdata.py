@@ -364,9 +364,7 @@ class SeismometerArray(OrderedDict):
         return data
 
     @classmethod
-    def _gen_rwave(cls, stations, amplitude, phi, theta, epsilon,
-                   alpha, frequency, duration, Fs=100, c=3000,
-                   phase=0):
+    def _gen_rwave(cls, stations, amplitude, phi, theta, rwave_params,frequency, duration, Fs=100, phase=0):
         """
 
         Parameters
@@ -389,47 +387,60 @@ class SeismometerArray(OrderedDict):
         -------
 
         """
+        # read r-wave eigenfunctions from dict
+        C1=rwave_params['C1']
+        C2=rwave_params['C2']
+        C3=rwave_params['C3']
+        C4=rwave_params['C4']
+        a1=rwave_params['a1']
+        a2=rwave_params['a2']
+        a3=rwave_params['a3']
+        a4=rwave_params['a4']
+        v=rwave_params['v']
 
+        # sines and cosines of source direction        
+        if theta ~= pi/2:
+            print 'WARNING: Injecting R-Wave and theta~=pi/2'
         cphi = np.cos(phi)
         sphi = np.sin(phi)
         ctheta = np.cos(theta)
         stheta = np.sin(theta)
+
+        # unit vector in direction of source direction
         src_dir = np.array([cphi * stheta, sphi * stheta, ctheta])
-        # get time delays
-        taus = np.array([-np.dot(src_dir, stations[key]) / c for key in
-                         stations.keys()])
-        tau_round = np.round(taus * Fs) / Fs
-        ts = min(-tau_round)
-        te = max(-tau_round)
-        times = np.arange(0, np.abs(ts) + duration + te, 1 / Fs)
-        Nsamps = int(duration * Fs)
-        # shift backward in time
-        times += ts
-        data = SeismometerArray()
-        ct = 0
-        final_times = np.arange(0, duration, 1 / Fs)
+
+        # initialize data and times data structures
+        data = SeismometerArray() 
+        times = np.arange(0, duration, 1 / Fs)
         for key in stations.keys():
             data[key] = {}
             station = stations[key]
-            delay = -np.dot(src_dir, station) / c
-            delaySamps = int(ts * Fs + np.round(delay * Fs))
+            # time delay for this station
+            delay = -np.dot(src_dir, station) / v
+            # round time delay to nearest sampled time
+            delay = np.round(delay*Fs)/Fs
+            # initialize signal vector
             signal = np.zeros(times.size)
             if frequency == 0:
                 signal = amplitude * np.random.randn(times.size)
             else:
                 # most of our noise spectra will be one-sided, but this is a real
                 # signal, so we multiply this by two.
-                signal = amplitude * np.cos(2 * np.pi * frequency * times + phase)
-                signal_phaseoff = -amplitude * np.sin(2 * np.pi * frequency * times + phase)
-            # impose time delay
-            amp = np.roll(signal, delaySamps)[:Nsamps] * np.exp(-station[2] / alpha)
-            amp2 = np.roll(signal_phaseoff, delaySamps)[:Nsamps] * \
-                   np.exp(station[2] / alpha)
-            data[key]['HHE'] = cphi * Trace(amp, sample_rate=Fs,
+                signal = amplitude * np.cos(2 * np.pi * frequency * (times + delay) + phase)
+                signal_phaseoff = amplitude * np.sin(2 * np.pi * frequency * (times + delay) + phase)
+                        
+            # compute eigenfunctions for this station
+            k=2*pi*frequency/v
+            z=station[2] # IS THIS CORRECT? HOW TO COMPUTE DEPTH OF EACH STATION?
+            r1=C1*np.exp(-a1*k*z)+C2*np.exp(-a2*k*z)
+            r2=C3*np.exp(-a3*k*z)+C4*np.exp(-a4*k*z)
+
+            # compute output of each channel
+            data[key]['HHE'] = cphi * r1 * Trace(signal, sample_rate=Fs,
                                             times=final_times, unit=u.m)
-            data[key]['HHN'] = sphi * Trace(amp, sample_rate=Fs,
+            data[key]['HHN'] = sphi * r1 * Trace(signal, sample_rate=Fs,
                                             times=final_times, unit=u.m)
-            data[key]['HHZ'] = epsilon * Trace(amp2, sample_rate=Fs,
+            data[key]['HHZ'] = r2 * Trace(signal_phaseoff, sample_rate=Fs,
                                                times=final_times, unit=u.m)
             for key2 in data[key].keys():
                 data[key][key2].location = station
@@ -498,8 +509,9 @@ class SeismometerArray(OrderedDict):
                                              )
         self.add_another_seismometer_array(s_data)
 
-    def add_r_wave(self, amplitude, phi, theta, epsilon, alpha, frequency,
-                   duration, phase=0, Fs=100, c=200):
+    def add_r_wave(self, amplitude, phi, theta, frequency,
+                   duration, phase=0, Fs=100, c=200,
+                   paramfile):
         """
 
         Add rayleigh wave to seismometer array's data. Updates seismometer array data in place.
@@ -527,9 +539,22 @@ class SeismometerArray(OrderedDict):
         c : `float`
             velocity of injected wave
         """
+        if paramfile==None:
+            rwave_params={'C1':1,
+                          'C2':1,
+                          'C3':1,
+                          'C4':1,
+                          'a1':1,
+                          'a2':1,
+                          'a3':1,
+                          'a4':1,
+                          'v':1}
+        else:
+            rwave_params=np.load(paramfile)[0]
+
         locations = self.get_locations()
         r_data = SeismometerArray._gen_rwave(locations, amplitude, phi,
-                                             theta, epsilon, alpha, frequency, duration, phase=phase, Fs=Fs, c=c
+                                             theta, rwave_params, frequency, duration, phase=phase, Fs=Fs, c=c
                                              )
         self.add_another_seismometer_array(r_data)
 
@@ -856,7 +881,7 @@ class SeismometerArray(OrderedDict):
         return Ys
 
     def get_response_matrix_healpy(self, rec_type, station_locs, recovery_freq,
-                          v, nside=8, autocorrelations=True, epsilon=0.1, alpha=1000,
+                          v, nside=8, autocorrelations=True, paramfile=None,
                           channels=None, fftlength=2, overlap=1,
                           nproc=1, iter_lim=1000, atol=1e-6, btol=1e-6):
         """TODO: Docstring for get_gamma_matrices.
@@ -1028,8 +1053,7 @@ class SeismometerArray(OrderedDict):
                                                      float(recovery_freq),
                                                      thetas=thetas_temp,
                                                      phis=phis_temp,
-                                                     epsilon=epsilon,
-                                                     alpha=alpha,
+                                                     paramfile=paramfile,
                                                      healpy=True)
                                 # append new, flattened, g onto the
                                 # end of the one we've generated
