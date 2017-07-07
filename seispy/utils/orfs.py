@@ -361,7 +361,7 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
     # with k = omega/v = 2*pi*f/v
     if rayleigh_paramfile==None:
         print 'WARNING: No Rayleigh paramfile specified, using default eigenfunction'
-        rayleigh_paramfile='rayleigh_paramfiles/default_rayleigh_paramfile.npy'
+        rayleigh_paramfile='rayleigh_paramfiles/default_rayleigh_params.npy'
     data=np.load(rayleigh_paramfile)[0]
     C1=data['C1']
     C2=data['C2']

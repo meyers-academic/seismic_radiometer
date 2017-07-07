@@ -967,7 +967,7 @@ class SeismometerArray(OrderedDict):
         return G, phis, thetas, shapes
 
     def get_gamma_matrix_healpy(self, rec_type, station_locs, recovery_freq,
-                          v, autocorrelations=True, rayleigh_paramfile=None
+                          v, autocorrelations=True, rayleigh_paramfile=None,
                           channels=None, fftlength=2, overlap=1,
                           nproc=1, iter_lim=1000, atol=1e-6, btol=1e-6,
                           nside=8):
