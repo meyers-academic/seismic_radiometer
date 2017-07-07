@@ -3,6 +3,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 from scipy.special import sph_harm
 from .utils import calc_travel_time, calc_travel_time2
+import os
 
 def orf_p(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1,
         phimesh=1):
@@ -361,7 +362,9 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
     # with k = omega/v = 2*pi*f/v
     if rayleigh_paramfile==None:
         print 'WARNING: No Rayleigh paramfile specified, using default eigenfunction'
-        rayleigh_paramfile='rayleigh_paramfiles/default_rayleigh_params.npy'
+        dir=os.path.dirname(__file__)
+        rayleigh_relative_path='./rayleigh_paramfiles/default_rayleigh_params.npy'
+        rayleigh_paramfile=os.path.join(dir,rayleigh_relative_path)
     data=np.load(rayleigh_paramfile)[0]
     C1=data['C1']
     C2=data['C2']
