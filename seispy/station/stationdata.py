@@ -440,7 +440,7 @@ class SeismometerArray(OrderedDict):
             r2=C3*np.exp(-a3*k*z)+C4*np.exp(-a4*k*z)
 
             print str(r1)
-            pritn str(r2)
+            print str(r2)
 
             # compute output of each channel
             data[key]['HHE'] = cphi * r1 * Trace(signal, sample_rate=Fs,
