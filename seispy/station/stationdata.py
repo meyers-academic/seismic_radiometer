@@ -13,7 +13,7 @@ from gwpy.frequencyseries import FrequencySeries
 from .station import StationArray, homestake
 import geographiclib.geodesic as ggg
 import healpy as hp
-
+import pkg_resources
 
 class Seismometer(OrderedDict):
     """
@@ -547,8 +547,8 @@ class SeismometerArray(OrderedDict):
         """
         if rayleigh_paramfile==None:
             print 'WARNING: No Rayleigh paramfile specified for injection, using default eigenfunction'
-            rayleigh_paramfile='../utils/rayleigh_paramfiles/default_rayleigh_params.npy'
-
+            rayleigh_paramfile=pkg_resources.resource_filename('seispy','default_rayleigh_params.npy')
+        
         rwave_params=np.load(rayleigh_paramfile)[0]
 
         locations = self.get_locations()
