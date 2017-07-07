@@ -510,8 +510,7 @@ class SeismometerArray(OrderedDict):
         self.add_another_seismometer_array(s_data)
 
     def add_r_wave(self, amplitude, phi, theta, frequency,
-                   duration, phase=0, Fs=100, c=200,
-                   paramfile):
+                   duration, rayleigh_params,phase=0, Fs=100, c=2000):
         """
 
         Add rayleigh wave to seismometer array's data. Updates seismometer array data in place.
