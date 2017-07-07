@@ -437,11 +437,11 @@ class SeismometerArray(OrderedDict):
 
             # compute output of each channel
             data[key]['HHE'] = cphi * r1 * Trace(signal, sample_rate=Fs,
-                                            times=final_times, unit=u.m)
+                                            times=times, unit=u.m)
             data[key]['HHN'] = sphi * r1 * Trace(signal, sample_rate=Fs,
-                                            times=final_times, unit=u.m)
+                                            times=times, unit=u.m)
             data[key]['HHZ'] = r2 * Trace(signal_phaseoff, sample_rate=Fs,
-                                               times=final_times, unit=u.m)
+                                               times=times, unit=u.m)
             for key2 in data[key].keys():
                 data[key][key2].location = station
         return data
