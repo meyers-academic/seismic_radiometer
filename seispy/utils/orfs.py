@@ -412,7 +412,7 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
     sf1 = (r1_det1*np.dot(OMEGA,ch1_vec)+r2_det1*np.exp(1j*np.pi/2)*ch1_vec[2]).reshape(omg_shape)
     sf2 = (r1_det2*np.dot(OMEGA,ch1_vec)+r2_det2*np.exp(1j*np.pi/2)*ch2_vec[2]).reshape(omg_shape)
 
-    gamma = sf1*np.conj(sf2)*np.exp(-2*np.pi*1j*f*dt)
+    gamma = sf1*np.conj(sf2)*np.exp(+2*np.pi*1j*f*dt)
 
     return gamma,phis,thetas
 
