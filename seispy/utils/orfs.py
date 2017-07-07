@@ -312,8 +312,8 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
     return gamma1,gamma2,phis,thetas
 
 def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
-                      thetas=None,phis=None, healpy=False,paramfile=None):
-#C1=1,C2=1,C3=1,C4=1,a1=1,a2=1,a3=1,a4=1,v=1):
+                      thetas=None,phis=None, healpy=False,
+                      rayleigh_paramfile=None):
     """
     Calculate r-wave overlap reduction function between
     two channels
@@ -335,8 +335,9 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
         OPTIONAL: list of phi coordinates at which to evaluate ORF
     healpy: `boolean`
         OPTIONAL: use healpix? NOTE: if this is true, thetas and phis should also be given
-    C1,C2,C3,C4,a1,a2,a3,a4,v: `floats`
-        OPTIONAL: parameters for r-wave eigenfunctions (based on )
+    rayleigh_paramfile: `string`
+        OPTIONAL: filename containing parameters for r wave eigenfunctions. If none is specified,
+        default parameters will be used and a warning will be printed
     Returns
     -------
     gamma1 : `numpy.ndarray`
@@ -358,63 +359,22 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
     # r1 = C1 exp(-a1*k*z) + C2 exp(-a2*k*z)
     # r2 = C3 exp(-a3*k*z) + C4 exp(-a4*k*z)
     # with k = omega/v = 2*pi*f/v
-    if paramfile==None:
-        print 'Using default parameters for R-Wave eigenfunctions'
-        C1=1
-        C2=1
-        C3=1
-        C4=1
-        a1=1
-        a2=1
-        a3=1
-        a4=1
-        v=1
-    else:
-        data=load(paramfile)[0]
-        C1=data['C1']
-        C2=data['C2']
-        C3=data['C3']
-        C4=data['C4']
-        a1=data['a1']
-        a2=data['a2']
-        a3=data['a3']
-        a4=data['a4']
-        v=data['v']
-#    try:
-#        C1=kwargs['C1']
-#    except KeyError:
-#        C1=1
-#    try:
-#        C2=kwargs['C2']
-#    except KeyError:
-#        C2=1
-#    try:
-#        C3=kwargs['C3']
-#    except KeyError:
-#        C3=1
-#    try:
-#        C4=kwargs['C4']
-#    except KeyError:
-#        C4=1
-#    try:
-#       a1=kwargs['a1']
-#    except KeyError:
-#        a1=1
-#    try: 
-#        a2=kwargs['a2']
-#    except KeyError:
-#        a2=1
-#    try:
-#        a3=kwargs['a3']
-#    except KeyError:
-#        a4=kwargs['a4']
-#    try:
-#        v=kwargs['v']
-#    except KeyError:
-#        v=1
+    if rayleigh_paramfile==None:
+        print 'WARNING: No Rayleigh paramfile specified, using default eigenfunction'
+        rayleigh_paramfile='rayleigh_paramfiles/default_rayleigh_paramfile.npy'
+    data=np.load(rayleigh_paramfile)[0]
+    C1=data['C1']
+    C2=data['C2']
+    C3=data['C3']
+    C4=data['C4']
+    a1=data['a1']
+    a2=data['a2']
+    a3=data['a3']
+    a4=data['a4']
+    v=data['v']
 
-    z1=det1_loc[2]
-    z2=det2_loc[2]
+    z1=-det1_loc[2] # IS THIS CORRECT?
+    z2=-det2_loc[2] # IS THIS CORRECT?
     k=2*np.pi*f/v
 
     r1=C1*np.exp(-a1*k*z1)+C2*np.exp(-a2*k*z1)
@@ -422,11 +382,12 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
 
     # get separation vector
     x_vec = np.array(det1_loc) - np.array(det2_loc)
-    # make it a unit vector
+    # initialize angle arrays
     if thetas is None:
         thetas = np.arange(3,180,6) * np.pi / 180
     if phis is None:
         phis = np.arange(3,360,6) * np.pi / 180
+    # define angle meshes. different for healpy vs non-healpy
     if healpy:
         THETAS = thetas
         PHIS = phis
@@ -629,10 +590,11 @@ def orf_p_sph(l,m,ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1
     return gammas, ff
 
 def orf_picker(string, ch1_vec, ch2_vec, det1_loc, det2_loc, v, f, thetas=None,
-               phis=None, healpy=False,paramfile=None):
+               phis=None, healpy=False,rayleigh_paramfile=None):
     if string is 'r':
         g1, p, t =  orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
-                                      f, thetas=thetas, phis=phis, healpy=healpy,paramfile=paramfile)
+                                      f, thetas=thetas, phis=phis, healpy=healpy,
+                                      rayleigh_paramfile=rayleigh_paramfile)
         return g1.reshape((g1.size,1)), g1.shape
     if string is 's':
         g1, g2, p, t =  orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,

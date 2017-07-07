@@ -967,7 +967,7 @@ class SeismometerArray(OrderedDict):
         return G, phis, thetas, shapes
 
     def get_gamma_matrix_healpy(self, rec_type, station_locs, recovery_freq,
-                          v, autocorrelations=True, epsilon=0.1, alpha=1000,
+                          v, autocorrelations=True, rayleigh_paramfile=None
                           channels=None, fftlength=2, overlap=1,
                           nproc=1, iter_lim=1000, atol=1e-6, btol=1e-6,
                           nside=8):
@@ -1059,7 +1059,7 @@ class SeismometerArray(OrderedDict):
                                                      float(recovery_freq),
                                                      thetas=thetas_temp,
                                                      phis=phis_temp,
-                                                     paramfile=paramfile,
+                                                     rayleigh_paramfile=rayleigh_paramfile,
                                                      healpy=True)
                                 # append new, flattened, g onto the
                                 # end of the one we've generated
