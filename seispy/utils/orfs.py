@@ -378,8 +378,11 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
     z2=-det2_loc[2] # IS THIS CORRECT?
     k=2*np.pi*f/v
 
-    r1=C1*np.exp(-a1*k*z1)+C2*np.exp(-a2*k*z1)
-    r2=C3*np.exp(-a3*k*z2)+C4*np.exp(-a4*k*z2)
+    r1_det1=C1*np.exp(-a1*k*z1)+C2*np.exp(-a2*k*z1)
+    r2_det1=C3*np.exp(-a3*k*z1)+C4*np.exp(-a4*k*z1)
+    r1_det2=C1*np.exp(-a1*k*z2)+C2*np.exp(-a2*k*z2)
+    r2_det2=C3*np.exp(-a3*k*z2)+C4*np.exp(-a4*k*z2)
+
 
     # get separation vector
     x_vec = np.array(det1_loc) - np.array(det2_loc)
@@ -406,8 +409,8 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
 
     dt = calc_travel_time2(x_vec, OMEGA, v).reshape(omg_shape)
 
-    sf1 = (r1*np.dot(OMEGA,ch1_vec)+r2*np.exp(1j*np.pi/2)*ch1_vec[2]).reshape(omg_shape)
-    sf2 = (r1*np.dot(OMEGA,ch1_vec)+r2*np.exp(1j*np.pi/2)*ch2_vec[2]).reshape(omg_shape)
+    sf1 = (r1_det1*np.dot(OMEGA,ch1_vec)+r2_det1*np.exp(1j*np.pi/2)*ch1_vec[2]).reshape(omg_shape)
+    sf2 = (r1_det2*np.dot(OMEGA,ch1_vec)+r2_det2*np.exp(1j*np.pi/2)*ch2_vec[2]).reshape(omg_shape)
 
     gamma = sf1*np.conj(sf2)*np.exp(-2*np.pi*1j*f*dt)
 
