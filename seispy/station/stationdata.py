@@ -517,7 +517,7 @@ class SeismometerArray(OrderedDict):
         self.add_another_seismometer_array(s_data)
 
     def add_r_wave(self, amplitude, phi, theta, frequency,
-                   duration, rayleigh_params,phase=0, Fs=100, c=2000):
+                   duration, rayleigh_paramfile=None,phase=0, Fs=100):
         """
 
         Add rayleigh wave to seismometer array's data. Updates seismometer array data in place.
@@ -545,23 +545,15 @@ class SeismometerArray(OrderedDict):
         c : `float`
             velocity of injected wave
         """
-        if paramfile==None:
-            rwave_params={'C1':1,
-                          'C2':1,
-                          'C3':1,
-                          'C4':1,
-                          'a1':1,
-                          'a2':1,
-                          'a3':1,
-                          'a4':1,
-                          'v':1}
-        else:
-            rwave_params=np.load(paramfile)[0]
+        if rayleigh_paramfile==None:
+            print 'WARNING: No Rayleigh paramfile specified for injection, using default eigenfunction'
+            rayleigh_paramfile='../utils/rayleigh_paramfiles/default_rayleigh_params.npy'
+
+        rwave_params=np.load(rayleigh_paramfile)[0]
 
         locations = self.get_locations()
         r_data = SeismometerArray._gen_rwave(locations, amplitude, phi,
-                                             theta, rwave_params, frequency, duration, phase=phase, Fs=Fs, c=c
-                                             )
+                                             theta, rwave_params, frequency, duration, phase=phase, Fs=Fs)
         self.add_another_seismometer_array(r_data)
 
     @classmethod
