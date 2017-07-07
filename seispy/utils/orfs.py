@@ -311,8 +311,9 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
     gamma2 = sf2 * np.exp(-2*np.pi*1j*f*dt)
     return gamma1,gamma2,phis,thetas
 
-def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f, params_file,
-        thetas=None,phis=None, healpy=False):
+def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
+                      thetas=None,phis=None, healpy=False,paramfile=None):
+#C1=1,C2=1,C3=1,C4=1,a1=1,a2=1,a3=1,a4=1,v=1):
     """
     Calculate r-wave overlap reduction function between
     two channels
@@ -328,17 +329,14 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f, params_file,
         location of second sensor
     f : `float`
         frequency at which you would like the orf
-    params_file: `string`
-        file name containing parameters for r wave eigenfunctions
-        should be stored as a python dict giving values for constants in
-        equation 6.10 of Tanner's thesis https://conservancy.umn.edu/handle/11299/182183
     thetas: `list-like`
         OPTIONAL: list of theta coordinate values on which to evaluate ORF
     phis: `list-like`
         OPTIONAL: list of phi coordinates at which to evaluate ORF
     healpy: `boolean`
         OPTIONAL: use healpix? NOTE: if this is true, thetas and phis should also be given
-
+    C1,C2,C3,C4,a1,a2,a3,a4,v: `floats`
+        OPTIONAL: parameters for r-wave eigenfunctions (based on )
     Returns
     -------
     gamma1 : `numpy.ndarray`
@@ -360,16 +358,60 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f, params_file,
     # r1 = C1 exp(-a1*k*z) + C2 exp(-a2*k*z)
     # r2 = C3 exp(-a3*k*z) + C4 exp(-a4*k*z)
     # with k = omega/v = 2*pi*f/v
-    params=np.load(params_file)[0]
-    C1=params['C1']
-    C2=params['C2']
-    C3=params['C3']
-    C4=params['C4']
-    a1=params['a1']
-    a2=params['a2']
-    a3=params['a3']
-    a4=params['a4']
-    v=params['v']
+    if paramfile==None:
+        print 'Using default parameters for R-Wave eigenfunctions'
+        C1=1
+        C2=1
+        C3=1
+        C4=1
+        a1=1
+        a2=1
+        a3=1
+        a4=1
+        v=1
+    else:
+        data=load(paramfile)[0]
+        C1=data['C1']
+        C2=data['C2']
+        C3=data['C3']
+        C4=data['C4']
+        a1=data['a1']
+        a2=data['a2']
+        a3=data['a3']
+        a4=data['a4']
+        v=data['v']
+#    try:
+#        C1=kwargs['C1']
+#    except KeyError:
+#        C1=1
+#    try:
+#        C2=kwargs['C2']
+#    except KeyError:
+#        C2=1
+#    try:
+#        C3=kwargs['C3']
+#    except KeyError:
+#        C3=1
+#    try:
+#        C4=kwargs['C4']
+#    except KeyError:
+#        C4=1
+#    try:
+#       a1=kwargs['a1']
+#    except KeyError:
+#        a1=1
+#    try: 
+#        a2=kwargs['a2']
+#    except KeyError:
+#        a2=1
+#    try:
+#        a3=kwargs['a3']
+#    except KeyError:
+#        a4=kwargs['a4']
+#    try:
+#        v=kwargs['v']
+#    except KeyError:
+#        v=1
 
     z1=det1_loc[2]
     z2=det2_loc[2]
@@ -377,11 +419,6 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f, params_file,
 
     r1=C1*np.exp(-a1*k*z1)+C2*np.exp(-a2*k*z1)
     r2=C3*np.exp(-a3*k*z2)+C4*np.exp(-a4*k*z2)
-
-#    r11=C1*np.exp(-a1*k*z1)
-#    r12=C2*np.exp(-a2*k*z1)
-#    r21=C3*np.exp(-a3*k*z2)
-#    r22=C4*np.exp(-a4*k*z2)
 
     # get separation vector
     x_vec = np.array(det1_loc) - np.array(det2_loc)
@@ -592,10 +629,10 @@ def orf_p_sph(l,m,ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1
     return gammas, ff
 
 def orf_picker(string, ch1_vec, ch2_vec, det1_loc, det2_loc, v, f, thetas=None,
-        phis=None, epsilon=0.1, alpha=1000, healpy=False):
+               phis=None, healpy=False,paramfile=None):
     if string is 'r':
-        g1, p, t =  orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon,
-                alpha, v, f, thetas=thetas, phis=phis, healpy=healpy)
+        g1, p, t =  orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
+                                      f, thetas=thetas, phis=phis, healpy=healpy,paramfile=paramfile)
         return g1.reshape((g1.size,1)), g1.shape
     if string is 's':
         g1, g2, p, t =  orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
