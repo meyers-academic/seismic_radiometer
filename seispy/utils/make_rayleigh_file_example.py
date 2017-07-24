@@ -1,15 +1,15 @@
 # script to show an example of making a rayleigh eigenfunction paramfile
-# we use a toy example with arbitrarily chosen coefficients
+# uses f=1Hz in table 6.7 of Tanner's thesis
 import numpy as np
 
 data={'C1':1,
-      'C2':0.5,
-      'C3':0.25,
-      'C4':0.75,
-      'a1':0.1,
-      'a2':0.05,
-      'a3':0.075,
-      'a4':0.025,
-      'v':1}
+      'C2':-0.05,
+      'C3':1.95,
+      'C4':-0.95,
+      'a1':0.08,
+      'a2':0.06,
+      'a3':0.19,
+      'a4':0.99,
+      'v':1208}
 
-np.save('example_rayleigh_file.npy',[data])
+np.save('rayleigh_paramfiles/default_rayleigh_params.npy',[data])

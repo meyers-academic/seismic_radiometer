@@ -3,7 +3,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 from scipy.special import sph_harm
 from .utils import calc_travel_time, calc_travel_time2
-import pkg_resources
+import os.path
 
 def orf_p(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1,
         phimesh=1):
@@ -314,7 +314,7 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
 
 def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
                       thetas=None,phis=None, healpy=False,
-                      rayleigh_paramfile=None):
+                      rayleigh_paramfile=None,rayleigh_paramdict=None):
     """
     Calculate r-wave overlap reduction function between
     two channels
@@ -339,6 +339,9 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
     rayleigh_paramfile: `string`
         OPTIONAL: filename containing parameters for r wave eigenfunctions. If none is specified,
         default parameters will be used and a warning will be printed
+    rayleigh_paramdict: `dict'
+        OPTIONAL: dict containing values for r-wave eigenfunctions.
+        parameters not specified will default to the values given in rayleigh_paramfile
     Returns
     -------
     gamma1 : `numpy.ndarray`
@@ -362,19 +365,50 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
     # with k = omega/v = 2*pi*f/v
     if rayleigh_paramfile==None:
         print 'WARNING: No Rayleigh paramfile specified, using default eigenfunction'
-        rayleigh_paramfile=pkg_resources.resource_filename('seispy','default_rayleigh_params.npy')
-    data=np.load(rayleigh_paramfile)[0]
-    C1=data['C1']
-    C2=data['C2']
-    C3=data['C3']
-    C4=data['C4']
-    a1=data['a1']
-    a2=data['a2']
-    a3=data['a3']
-    a4=data['a4']
-    v=data['v']
-
-    z1=-det1_loc[2] # IS THIS CORRECT?
+        a1=0.47
+        a3=0.73
+        a2=1.51
+        a4=0.25
+        v=2504
+        C3=2.7
+        C2=1.29
+        C1=2.29
+        C4=-1.44
+    else:
+        data=np.load(rayleigh_paramfile)[0]
+        C1=data['C1']
+        C2=data['C2']
+        C3=data['C3']
+        C4=data['C4']
+        a1=data['a1']
+        a2=data['a2']
+        a3=data['a3']
+        a4=data['a4']
+        v=data['v']
+    # if a parameter dict is specified, overwrite values 
+    if rayleigh_paramdict==None:
+        pass
+    else:
+        for key in rayleigh_paramdict.keys():
+            if key=='C1':
+                C1=rayleigh_paramdict['C1']
+            elif key=='C2':
+                C2=rayleigh_paramdict['C2']
+            elif key=='C3':
+                C3=rayleigh_paramdict['C3']
+            elif key=='C4':
+                C4=rayleigh_paramdict['C4']
+            elif key=='a1':
+                a1=rayleigh_paramdict['a1']
+            elif key=='a2':
+                a2=rayleigh_paramdict['a2']
+            elif key=='a3':
+                a3=rayleigh_paramdict['a3']
+            elif key=='a4':
+                a4=rayleigh_paramdict['a4']
+            elif key=='v':
+                v=rayleigh_paramdict['v']
+    z1=-det1_loc[2] # IS THIS CORRECT? (where is 'earth surface' z=0 defined)
     z2=-det2_loc[2] # IS THIS CORRECT?
     k=2*np.pi*f/v
 
@@ -593,12 +627,13 @@ def orf_p_sph(l,m,ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1
                 OmgZ*x_vec[0])/vp) * (dtheta*dphi*3/(4*np.pi))))
     return gammas, ff
 
-def orf_picker(string, ch1_vec, ch2_vec, det1_loc, det2_loc, v, f, thetas=None,
-               phis=None, healpy=False,rayleigh_paramfile=None):
+def orf_picker(string, ch1_vec, ch2_vec, det1_loc, det2_loc, v,f, thetas=None,
+               phis=None, healpy=False,rayleigh_paramfile=None,rayleigh_paramdict=None):
     if string is 'r':
         g1, p, t =  orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
                                       f, thetas=thetas, phis=phis, healpy=healpy,
-                                      rayleigh_paramfile=rayleigh_paramfile)
+                                      rayleigh_paramfile=rayleigh_paramfile,
+                                      rayleigh_paramdict=rayleigh_paramdict)
         return g1.reshape((g1.size,1)), g1.shape
     if string is 's':
         g1, g2, p, t =  orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,

@@ -517,7 +517,7 @@ class SeismometerArray(OrderedDict):
         self.add_another_seismometer_array(s_data)
 
     def add_r_wave(self, amplitude, phi, theta, frequency,
-                   duration, rayleigh_paramfile=None,phase=0, Fs=100):
+                   duration, rayleigh_paramfile=None,rayleigh_paramdict=None,phase=0, Fs=100):
         """
 
         Add rayleigh wave to seismometer array's data. Updates seismometer array data in place.
@@ -545,11 +545,21 @@ class SeismometerArray(OrderedDict):
         c : `float`
             velocity of injected wave
         """
-        if rayleigh_paramfile==None:
+        if rayleigh_paramfile==None and rayleigh_paramdict==None:
             print 'WARNING: No Rayleigh paramfile specified for injection, using default eigenfunction'
-            rayleigh_paramfile=pkg_resources.resource_filename('seispy','default_rayleigh_params.npy')
-        
-        rwave_params=np.load(rayleigh_paramfile)[0]
+            rwave_params={'a1': 0.47, 
+                          'a3': 0.73, 
+                          'a2': 1.51, 
+                          'a4': 0.25, 
+                          'v': 2504, 
+                          'C3': 2.7, 
+                          'C2': -1.29, 
+                          'C1': 2.29, 
+                          'C4': -1.4400000000000002}
+        elif rayleigh_paramfile is not None:
+            rwave_params=np.load(rayleigh_paramfile)[0]
+        else:
+            rwave_params=rayleigh_paramdict
 
         locations = self.get_locations()
         r_data = SeismometerArray._gen_rwave(locations, amplitude, phi,
@@ -958,8 +968,8 @@ class SeismometerArray(OrderedDict):
                     G = np.hstack((G, g))
         return G, phis, thetas, shapes
 
-    def get_gamma_matrix_healpy(self, rec_type, station_locs, recovery_freq,
-                          v, autocorrelations=True, rayleigh_paramfile=None,
+    def get_gamma_matrix_healpy(self, rec_type, station_locs, v,recovery_freq,
+                          autocorrelations=True, rayleigh_paramfile=None,rayleigh_paramdict=None,
                           channels=None, fftlength=2, overlap=1,
                           nproc=1, iter_lim=1000, atol=1e-6, btol=1e-6,
                           nside=8):
