@@ -6,3 +6,4 @@ obspy
 h5py
 http://software.ligo.org/lscsoft/source/glue-1.53.0.tar.gz
 pykerberos
+geographiclib

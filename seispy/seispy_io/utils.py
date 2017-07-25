@@ -1,6 +1,6 @@
 import ConfigParser
 from collections import OrderedDict
-from termcolor import colored
+#from termcolor import colored
 
 class bcolors:
     HEADER = '\033[95m'
@@ -60,11 +60,11 @@ def print_params(params):
         print '\n%s PARAMS' % key.upper()
         for ii,param in enumerate(params[key].keys()):
             if ii % 2 ==0:
-                print colored('\t{:<20}{:<20}'.format(*[param,
-                        params[key][param]]), 'blue')
+                print('\t{:<20}{:<20}'.format(*[param,
+                        params[key][param]]))
             else:
-                print colored('\t{:<20}{:<20}'.format(*[param,
-                        params[key][param]]), 'green')
+                print('\t{:<20}{:<20}'.format(*[param,
+                        params[key][param]]))
 
 def try_and_set(params, section, parameter, default_val=None, warning=False,
         special=None):

@@ -1,16 +1,37 @@
 from gwpy.timeseries import TimeSeries
-from seispy.spec import Spec
 import numpy as np
 import scipy
 import glob
 from gwpy.time import *
-
+from astropy import units as u
+import geographiclib.geodesic as ggg
+import obspy.core.trace
 
 class Trace(TimeSeries):
     """class for doing seismic data analysis, inherited from gwpy TimeSeries"""
 
+    def to_obspy(self):
+        """
+        Take this trace to an obspy trace
+
+        Returns
+        -------
+        """
+        stats = obspy.core.trace.Stats()
+        stats['sampling_rate'] = self.sample_rate.value
+        try:
+            stats['location'] = self.get_location()
+        except:
+            pass
+        stats['starttime'] = self.times.value[0]
+        stats['npts'] = self.times.value.size
+        stats['channel'] = self.channel.name.split(':')[1]
+        stats['station'] = self.channel.name.split(':')[0]
+        return obspy.core.trace.Trace(self.value, stats)
+
     def hilbert(self):
         """
+
         Performs hilbert transform to get envelope of TS data.
 
         Parameters
@@ -24,16 +45,70 @@ class Trace(TimeSeries):
             extension of data (not just what woudl normally
             be considered hilbert transform)
         """
+        # TODO: need a unittest
+
         # hilbert transform
-        arr = scipy.signal.hilbert(self.value)
+        arr = (np.abs(scipy.signal.hilbert(self.value)) ** 2)**(0.5)
 
         # class assignment stuff...
-        TS = Trace(arr)
-        TS.__dict__ = self.copy_metadata()
-        return TS.detrend()
+        TS = Trace(arr, name=self.name, channel=self.channel,
+                   sample_rate=self.sample_rate, unit=self.unit,
+                   epoch=self.epoch)
+
+        return TS
+
+    def taper(self, **kwargs):
+        """
+
+        Returns a new (deep) copy of the object with a sin^2 taper
+        applied to both ends of the data.
+
+        Takes kwargs of 'v_min, v_max, dist' or a
+        :class:`seispy.event.Event` class
+        """
+        # TODO: unittest
+
+        # Make copy.
+        arr = np.copy(self.value)
+        dt = 1 / self.sample_rate.value
+
+        # Set up taper lengths
+        if all(k in kwargs for k in ('v_min','v_max','dist')):
+            dur_t1 = float(kwargs['dist']/kwargs['v_max'])
+            dur_t2 = (arr.size*dt) - (float(kwargs['dist']/kwargs['v_min']) + 60)
+            # Handle case where arrival time is after the end of the data.
+            # Taper just last 10 seconds.
+            if (dur_t2 <= 10):
+                dur_t2 = 10
+        elif ('event' in kwargs):
+            dur_t1 = kwargs['event'].taper_start
+            dur_t2 = kwargs['event'].taper_end
+        else:
+            raise ValueError('kwargs should be v_min, v_max, dist OR event=seisEv.')
+
+        # Make beginning taper.
+        nSamp_t1 = int(np.ceil(dur_t1/dt))
+        samples1 = np.arange(0,nSamp_t1,step=1)
+        taper1 = np.sin(2*np.pi*samples1/(4*(nSamp_t1-1)))
+
+        # Make end taper.
+        # Check if end arrival time is aft
+        nSamp_t2 = int(np.ceil(float(dur_t2)/dt))
+        samples2 = np.arange((nSamp_t2-1), -1, step=-1)
+        taper2 = np.sin(2*np.pi*samples2/(4*(nSamp_t2-1)))
+
+        # Taper data.
+        times = self.times.value
+        arr[0:nSamp_t1] *= taper1
+        arr[-nSamp_t2:] *= taper2
+        newtrace = Trace(arr, times=times, sample_rate=self.sample_rate,
+                         channel=self.channel, name=self.name)
+        newtrace.tapered = True
+        return newtrace
 
     def smooth(self, width=1):
         """
+
         Smooths data by convolving data with ones...
         still not sure how exactly this works and seems to
         produce some edge effects
@@ -49,6 +124,8 @@ class Trace(TimeSeries):
             Smoothed time series trace.
         """
 
+        # TODO: need a unittest
+
         TS = np.abs(self)
 
         # turn width into # of samples
@@ -58,10 +135,60 @@ class Trace(TimeSeries):
         window = np.ones((2 * width))
 
         # do convolution
-        TS = np.convolve(TS, window / (2 * width), 'same')
-        TS = Trace(TS)
-        TS.__dict__ = self.copy_metadata()
+        arr = np.convolve(TS.value, window / (2 * width), 'same')
+        TS = Trace(arr, name=self.name, channel=self.channel,
+                   sample_rate=self.sample_rate, unit=self.unit,
+                   epoch=self.epoch)
         return TS.detrend()
+
+    def gaussian_filter(self, filt_freq, filt_width):
+        """
+        Parameters
+        ----------
+        filt_freq : `float`
+            frequency of center of our filter
+        filt_width : `float`
+            width of our gaussian filter in Hz
+
+        Returns
+        -------
+        new_ts : `seispy.trace.Trace`
+            new trace with filtered data
+        """
+        new_fft = self.fft()
+        # create a gaussian filter
+        exp_array = -(filt_freq - new_fft.frequencies.value) ** 2 / ((filt_width * filt_freq) ** 2)
+        # multiply fft by our gaussian filter
+        new_fft *= np.exp(exp_array)
+        # take ifft
+        new_ts = new_fft.ifft()
+        # set up and return new Trace object
+        new_trace = Trace(new_ts.value, sample_rate=self.sample_rate,
+                          name=self.name, epoch=self.epoch,
+                          unit=self.unit, channel=new_ts.channel)
+        return new_trace
+
+    def vel2disp(self):
+        """
+        Change this trace from velocity to displacement.
+
+        Returns
+        -------
+        new_trace : `seispy.trace.Trace`
+            new trace with units of input units * seconds
+        """
+        # get fft
+        new_fft = self.fft()
+        # divide by frequencies
+        freqs = new_fft.frequencies.value
+        freqs[0] = 1
+        new_fft *= (1 / new_fft.frequencies.value)
+        # take ifft
+        new_ts = new_fft.ifft()
+        # get new Trace object
+        new_trace = Trace(new_ts.value, sample_rate=self.sample_rate, name=self.name, epoch=self.epoch, unit=self.unit*u.s)
+        return new_trace
+
 
     def renormalization(self, Ns=None, type='water_level'):
         """
@@ -144,200 +271,79 @@ class Trace(TimeSeries):
         elif type == 'bit':
             TS = np.sign(self.detrend())
             TS = Trace(TS)
-            TS.__dict__ = self.copy_metadata()
             return TS.detrend()
 
-    def fft_new(self, **kwargs):
+    def get_wave_path(self, event):
         """
-        Calculates fft (keeps negative frequencies as well...
-        we need them for ambient noise cross correlation).
-
-        NOTE: This is renormalized to be the correct spectrum,
-        however that means that you cannot just use
-        numpy.fft.ifft(self.fft_new(window=None))
-        to get back the original timeseries.
-
-        >>> data1 = read_frame(frame, channel)
-        >>> TS_old = np.fft.ifft(data1.size * data1.fft_new(window=None))
-        >>> data1 == TS_old
-
-        self.fft() uses the same normalization, but does not offer
-        whitening and windowing like this function does.
-
-        can do whitening if you want
-
-        Parameters:
-        -----------
-        whiten: `bool`, optional
-            Whitens spectrum on both sides.
-
-        Returns:
-        --------
-        fft : `Spec`, fft
-            Whitened if wanted
-        """
-        kwargs = self._check_fft_kwargs(kwargs)
-
-        # whiten
-        # if kwargs['whiten']:
-        #     Nsecs = self.value.size / self.sample_rate.value
-        #     TS = self.whiten(1. / 8 * Nsecs, 1. / 16 * Nsecs)
-        # else:
-        TS = self
-        # window and fft...
-        if kwargs['window'] == 'hanning':
-            window = np.hanning(TS.value.size)
-            fft = np.fft.fft(
-                TS.value * window) / (TS.size)
-            freqs = np.fft.fftfreq(
-                TS.value.size, d=(1. / TS.sample_rate.value))
-        else:
-            fft = np.fft.fft(
-                TS.value) / TS.size
-            freqs = np.fft.fftfreq(
-                TS.value.size, d=(1. / TS.sample_rate.value))
-        # put things in the right order
-        fft = Spec(
-            fft, f0=freqs[0], df=(freqs[1] - freqs[0]),
-            name=self.name, epoch=self.epoch)
-        if kwargs['whiten']:
-            fft = fft.whiten(width=1)
-
-        return fft
-
-    def _check_fft_kwargs(self, kwargs):
-        try:
-            kwargs['whiten']
-        except KeyError:
-            kwargs['whiten'] = False
-        try:
-            kwargs['window']
-        except KeyError:
-            kwargs['window'] = 'hanning'
-        return kwargs
-
-    def coherence_calc(self, tr, whiten=False, bandpass=None, flow=1e-4,
-                       fhigh=50, normtype=None, normlen=None, window='hanning',
-                       fftlength=None, overlap=None, outtype='ts'):
-        """
-        Calculates coherence between two traces. Will do spectral whitening,
-        normalize it.
-
-        Parameters:
-        -----------
-        tr : `Trace`
-            Trace time series to calculate coherence with.
-
-        Return:
-        -------
-        ifft : `Trace`
-            Trace time series of coherence
-        """
-        if bandpass is None and normtype is None:
-            new1 = self.fft_new(whiten=whiten, window=window)
-            new2 = tr.fft_new(whiten=whiten, window=window)
-        elif bandpass is None and normtype is not None:
-            new1 = self.renormalization(
-                Ns=normlen, type=normtype).fft_new(whiten=whiten,
-                                                   window=window)
-            new2 = tr.renormalization(
-                Ns=normlen, type=normtype).fft_new(whiten=whiten,
-                                                   window=window)
-        elif normtype is not None and bandpass is not None:
-            new1 = self.bandpass(flow, fhigh).renormalization(
-                Ns=normlen, type=normtype).fft_new(whiten=whiten,
-                                                   window=window)
-            new2 = tr.bandpass(flow, fhigh).renormalization(
-                Ns=normlen, type=normtype).fft_new(whiten=whiten,
-                                                   window=window)
-        elif normtype is None and bandpass is True:
-            new1 = self.bandpass(flow, fhigh).fft_new(
-                whiten=whiten, window=window)
-            new2 = tr.bandpass(flow, fhigh).fft_new(
-                whiten=whiten, window=window)
-
-        coh = np.conj(new1) * new2 / (np.abs(new1) * np.abs(new2))
-        # do ifft, but need to rearrange frequencies
-        coh_ts = np.fft.ifft(coh)
-        coh_ts = TimeSeries(coh_ts, name='coherence TS between %s and %s' % (
-            self.channel, tr.channel), sample_rate=(self.sample_rate))
-        if outtype == 'ts':
-            return coh_ts
-        if outtype == 'spec':
-            return np.fft.fftshift(coh)
-        if outtype == 'components':
-            return new1, new2
-
-    def coherence(self, tr, window='hanning', fftlength=None, stacktype='freq',
-                  **kwargs):
-        """
-        Calculate coherence between self and `tr` trace object.
+        Gets the primary wave path from the event location to the seismic station
+        using known coordinates of both. Distance is computed using an ellipsoidal
+        Earth model and following a geodesic path.
 
         Parameters
         ----------
-        tr : `Trace`
-            object with with to calculate coherence
-        fftlength : `int`
-            length of ffts to take when calculating coherence
-        stacktype : `str`
-            method used to stack coherences. options are 'ts' and 'freq'
-            'ts' averages resultant ifft'ed timeseries together. 'freq'
-            averages csds and psds individually and takes ratio of them at
-            the end and then takes ifft.
+        event: `seispy.event.Event`
+            seisEv object describing seismic event.
 
         Returns
         -------
-        coh_ts : `Trace`
-            coherence timeseries with acausal followed by causal times
+        dist: `float`
+            distance traveled between event location and station (meters).
+        bearing: `float`
+            final bearing (when it reaches station, relative to north)
+            of wave propagation path (degrees).
         """
-        if fftlength is None:
-            fftlength = self.size
-        Nsamps = fftlength * self.sample_rate.value
+        # Get station coordinates (in degrees)
+        sta_coords = self.get_coordinates()
 
-        # stack
-        if window == 'hanning' and fftlength <= 2 * self.size:
-            nsteps = 2 * self.size / Nsamps
-        else:
-            nsteps = self.size / Nsamps
-        for step in range(int(nsteps) - 1):
-            idx1 = step * Nsamps / 2.
-            idx2 = idx1 + Nsamps
-            if stacktype is 'freq':
-                new1, new2 = self[idx1:idx2].coherence_calc(
-                    tr[idx1:idx2], outtype='components', window=window,
-                    **kwargs)
-                if step == 0:
-                    csd = np.conj(new1) * new2
-                    asd1 = np.abs(new1)
-                    asd2 = np.abs(new2)
-                else:
-                    csd = (csd * step + new1 * new2) / (step + 1)
-                    asd1 = np.sqrt(
-                        (asd1 ** 2 * step + np.abs(new1)**2) / (step + 1))
-                    asd2 = np.sqrt(
-                        (asd2 ** 2 * step + np.abs(new2)**2) / (step + 1))
-            elif stacktype is 'ts':
-                if step == 0:
-                    coh_ts = self[idx1:idx2].coherence_calc(
-                        tr[idx1:idx2], outtype='ts', window=window,
-                        **kwargs)
-                else:
-                    coh_ts_temp = self[idx1:idx2].coherence_calc(
-                        tr[idx1:idx2], outtype='ts', window=window,
-                        **kwargs)
-                    coh_ts = (coh_ts * step + coh_ts_temp) / (step + 1)
+        # Rename coordinates for clarity.
+        lat1 = event.latitude
+        long1 = event.longitude
+        lat2 = sta_coords[0]
+        long2 = sta_coords[1]
 
-        if stacktype is 'freq':
-            coh = csd / (asd1 * asd2)
-            coh_ts = np.fft.ifft(coh)
-        deltaXvec = self.location - tr.location
-        N = coh_ts.size
-        coh_ts = np.hstack((coh_ts[N / 2:], coh_ts[:N / 2]))
-        coh_ts = Trace(coh_ts, name='coherence TS between %s and %s' % (
-            self.channel, tr.channel), sample_rate=(self.sample_rate))
-        coh_ts.deltax = deltaXvec
-        coh_ts.x0 = -coh_ts.times[-1] / 2.
-        return coh_ts.real
+        # Compute distance and final bearing with WGS84 ellipsoid.
+        geoObj = ggg.Geodesic.WGS84.Inverse(lat1, long1, lat2, long2)
+        dist = geoObj['s12']
+        bearing = geoObj['azi2']
+
+        return dist, bearing
+
+    def get_coordinates(self):
+        """
+        Gets homestake station coordinates
+
+        Returns
+        -------
+        coordinate : `list`
+            list [latitude, longitude, elevation, depth]
+        """
+        locs = {}
+        locs['DEAD'] = [44.382699, -103.7532, 1498, 0]
+        locs['LHS'] = [44.347299, -103.7748, 1684, 0]
+        locs['ORO'] = [44.343499, -103.7523, 1543, 0]
+        locs['ROSS'] = [44.345099, -103.7576, 1628, 0]
+        locs['RRDG'] = [44.359499, -103.7654, 1677, 0]
+        locs['SHL'] = [44.316899, -103.7098, 1772, 0]
+        locs['TPK'] = [44.340799, -103.7980, 1740, 0]
+        locs['WTP'] = [44.353899, -103.7423, 1555, 0]
+        locs['YATES'] = [44.352199, -103.7515, 1625, 0]
+        locs['300'] = [44.346399, -103.7569, 1505.1, 91.44]
+        locs['800'] = [44.347399, -103.7589, 1350, 243.84]
+        locs['1700'] = [44.351699, -103.7584, 1073.8, 518.16]
+        locs['A2000'] = [44.351099, -103.7623, 983.3, 609.6]
+        locs['B2000'] = [44.349199, -103.7605, 983.3, 609.6]
+        locs['C2000'] = [44.351599, -103.7637, 983.1, 609.6]
+        locs['D2000'] = [44.353299, -103.7689, 983.0, 609.6]
+        locs['E2000'] = [44.356399, -103.7716, 983.1, 609.6]
+        locs['A4100'] = [44.344899, -103.7535, 342.5, 1249.68]
+        locs['C4100'] = [44.351199, -103.7507, 342.3, 1249.68]
+        locs['D4100'] = [44.343599, -103.7511, 342.5, 1249.68]
+        locs['A4850'] = [44.340499, -103.7625, 115.2, 1478.28]
+        locs['B4850'] = [44.346299, -103.7581, 114.9, 1478.28]
+        locs['C4850'] = [44.346299, -103.7528, 114.6, 1478.28]
+        locs['D4850'] = [44.352999, -103.7505, 115.2, 1478.28]
+        staname = self.channel.name.split(':')[0]
+        return np.asarray(locs[staname])
 
     def get_location(self):
         """
@@ -346,7 +352,6 @@ class Trace(TimeSeries):
 
         Parameters
         ----------
-        none
 
         Returns
         -------
@@ -474,12 +479,8 @@ def read_frame(frame, channel, st=None, et=None, cfac=1.589459e-9):
 
     if st is not None and et is not None:
         d1 = cfac * Trace.read(frame, channel, st, et).detrend()
-        d2 = TimeSeries.read(frame, channel, st, et, format='lalframe')
     else:
         d1 = cfac * Trace.read(frame, channel).detrend()
-        d2 = TimeSeries.read(frame, channel, format='lalframe')
-    d1 = Trace(d1.value)
-    d1.__dict__ = d2.copy_metadata()
     d1.location = d1.get_location()
     return d1
 
@@ -507,7 +508,7 @@ def read_mseed(f, starttime=None, endtime=None):
         end time of file to load.
     """
     from obspy import (read, UTCDateTime)
-    from gwpy.time import *
+    from gwpy.time import tconvert
 
     # if no start time or end time, read the whole
     # damn thing
@@ -516,17 +517,17 @@ def read_mseed(f, starttime=None, endtime=None):
     data_et = float(tconvert(UTCDateTime(data[0].stats.endtime))) - 315964783
     dx = 1. / data[0].stats.sampling_rate
     if starttime is None and endtime is None:
-        print 'No start times specified, reading whole file...'
+        print('No start times specified, reading whole file...')
     elif isinstance(starttime, int) and isinstance(endtime, int):
         # check start/end times match file we're reading...useful
         # for fetching
         if starttime <= data_st:
             st = UTCDateTime(tconvert(data_st))
-        elif starttime > data_st:
+        else:
             st = UTCDateTime(tconvert(starttime))
         if endtime - dx >= data_et:
             et = UTCDateTime(tconvert(data_et - dx))
-        elif endtime - dx < data_et:
+        else:
             et = UTCDateTime(tconvert(endtime - dx))
         data = read(f, starttime=st, endtime=et)
 

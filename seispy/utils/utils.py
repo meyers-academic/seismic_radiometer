@@ -3,15 +3,52 @@ import numpy as np
 from matplotlib import use,rc
 use('agg')
 rc('text',usetex=True)
-import matplotlib.pyplot as plt
-from gwpy.timeseries import TimeSeries
 from seispy.trace import Trace
 import astropy.units as u
 import os
 from lal import CreateREAL8FrequencySeries
 from lal import CreateREAL8TimeSeries
 from lalsimulation import SimNoise
+from gwpy.spectrogram import Spectrogram
 
+def fftgram(ts, stride):
+    """Calculate the Fourier-gram of this `TimeSeries`.
+    At every ``stride``, a single, complex FFT is calculated.
+    Parameters
+    ----------
+    stride : `float`
+        number of seconds in single PSD (column of spectrogram)
+    Returns
+    -------
+    fftgram : :class:`~gwpy.spectrogram.core.Spectrogram`
+        a Fourier-gram
+    """
+    fftlength = stride
+    dt = stride
+    df = 1/fftlength
+    stride *= ts.sample_rate.value
+    # get size of Spectrogram
+    nsteps = int(ts.size // stride)
+    # get number of frequencies
+    nfreqs = int(fftlength*ts.sample_rate.value/2)
+
+    # generate output spectrogram
+    dtype = np.complex
+    dat = np.zeros((nsteps, nfreqs), dtype=dtype)
+    # stride through TimeSeries, recording FFTs as columns of Spectrogram
+    for step in range(nsteps):
+        # find step TimeSeries
+        idx = int(stride * step)
+        idx_end = int(idx + stride)
+        stepseries = ts[idx:idx_end]
+        # calculated FFT and stack
+        stepfft = stepseries.fft()
+        dat[step] = stepfft.value[1:]
+    out = Spectrogram(dat,
+                      name=ts.name, t0=ts.t0, f0=0, df=df,
+                      dt=dt, copy=False, unit=ts.unit*(u.Hz**-0.5), dtype=dtype)
+
+    return out
 
 def set_channel_vector(letter):
     if letter.upper() == 'Z':
@@ -66,6 +103,10 @@ def calc_travel_time(delta_vec, OMEGA, v):
         range(omg_shape[0])])
     return dt
 
+def calc_travel_time2(delta_vec, OMEGA, v):
+    delta_vec = np.array(delta_vec)
+    OMEGA = np.array(OMEGA)
+    return np.dot(delta_vec, OMEGA.T)/v
 
 def get_pdf_from_map(M):
     """

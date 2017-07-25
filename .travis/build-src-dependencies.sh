@@ -20,6 +20,9 @@ bash .travis/build-with-autotools.sh libframe-${LIBFRAME_VERSION}/${TRAVIS_PYTHO
 # LALFrame
 bash .travis/build-with-autotools.sh lalframe-${LALFRAME_VERSION}/${TRAVIS_PYTHON_VERSION} ${LALFRAME} --enable-swig-python || FAILURES="$FAILURES lalframe"
 
+# LALSimulation
+bash .travis/build-with-autotools.sh lalsimulation-${LALSIM_VERSION}/${TRAVIS_PYTHON_VERSION} ${LALSIM} --enable-swig-python || FAILURES="$FAILURES lalsimulation"
+
 # NDS2 client
 bash .travis/build-with-autotools.sh nds2-client-${NDS2_CLIENT_VERSION}/${TRAVIS_PYTHON_VERSION} ${NDS2_CLIENT} --disable-swig-java --disable-mex-matlab || FAILURES="$FAILURES nds2-client"
 
