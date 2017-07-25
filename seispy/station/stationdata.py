@@ -3,6 +3,7 @@ from collections import OrderedDict
 from warnings import warn
 from ..utils import *
 import astropy.units as u
+from gwpy.timeseries import TimeSeries
 from ..noise import gaussian
 from ..trace import Trace, fetch
 from ..recoverymap import RecoveryMap
@@ -802,6 +803,66 @@ class SeismometerArray(OrderedDict):
                     data_samples = np.vstack((data_samples, fft_of_t.T))
         return data_samples
 
+    def get_coherences_bband(self, flow, fhigh, channels=None, fftlength=2,
+            overlap=1, window='hann',nproc=8):
+        """TODO: Docstring for get_coherences.
+
+        Parameters
+        ----------
+        recovery_Freq : TODO
+
+        Returns
+        -------
+        TODO
+
+        """
+        stations = self.keys()
+        if channels is None:
+            channels = ['HHE','HHN','HHZ']
+        Ys = []
+        ct = 0
+        for ii, station1 in enumerate(stations):
+            for jj, station2 in enumerate(stations):
+                for kk, chan1 in enumerate(channels):
+                    for ll, chan2 in enumerate(channels):
+                        if jj < ii:
+                            # we don't double count stations
+                            continue
+                        if ii==jj and ll < kk:
+                            # don't double count channels
+                            continue
+                        else:
+                            # get csd spectrogram
+                            self[station1][channels[kk]].bandpass(flow, fhigh)
+                            self[station2][channels[ll]].bandpass(flow, fhigh)
+                            P12 = \
+                                self[station1][channels[kk]].csd_spectrogram(self[station2][channels[ll]],
+                                                                             stride=fftlength,
+                                                                             window=window,
+                                                                             overlap=overlap,
+                                                                             nproc=nproc)
+                            P11 = \
+                                self[station1][channels[kk]].csd_spectrogram(self[station1][channels[kk]],
+                                                                             stride=fftlength,
+                                                                             window=window,
+                                                                             overlap=overlap,
+                                                                             nproc=nproc)
+                            P22 = \
+                                self[station2][channels[ll]].csd_spectrogram(self[station2][channels[ll]],
+                                                                             stride=fftlength,
+                                                                             window=window,
+                                                                             overlap=overlap,
+                                                                             nproc=nproc)
+
+                            P12 = P12.mean(0)
+                            P11 = P11.mean(0)
+                            P22 = P22.mean(0)
+                            Y_of_f = P12/np.sqrt(P11*P22)
+                            Ys.append(FrequencySeries(Y_of_f, x0=0,
+                                    dx=1./fftlength))
+                            ct += 1
+        return Ys
+
 
     def get_coherences(self, recovery_freq, channels=None, fftlength=2,
             overlap=1, window='hann',nproc=8):
@@ -988,10 +1049,8 @@ class SeismometerArray(OrderedDict):
                         if jj < ii:
                             # we don't double count stations
                             continue
-                        if ll < kk:
+                        if ii==jj and ll < kk:
                             # don't double count channels
-                            continue
-                        if ii == jj and ll == kk:
                             continue
                         else:
                             phis = []

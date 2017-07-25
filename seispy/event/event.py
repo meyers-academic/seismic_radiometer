@@ -22,12 +22,13 @@ except ImportError:
     raise ImportError('Error: can\'t find obspy.  Please install it or add it to your $PYTHONPATH.')
 from seispy.station import Seismometer
 from scipy.optimize import curve_fit
+from scipy.signal import argrelmax
 
 analyzed_names = ['latitude', 'longitude', 'time', 'evID',
                   'magnitude', 'win_start', 'win_end', 'taper_start',
                   'taper_end', 'filter frequency','peak amplitude','peak time','peak time minimum',
                   'peak time maximum','velocity','bearing','distance',
-                  'channel', 'analyzed','station']
+                  'channel', 'analyzed','station', 'depth']
 
 # TODO we need some unittests for these classes
 # chanObj class.
@@ -161,21 +162,50 @@ class Event(dict):
             filtered_final[frequency] = {}
             env_dict[frequency] = {}
             for key in data.keys():
+                # channel
                 analyzed_event['channel'] = key
+                # filter data
                 filtered = data[key].gaussian_filter(frequency, 0.1)
+                # get depth
+                analyzed_event['depth'] = data[key].get_coordinates()[-1]
+                # add filtered data to dict
                 filtered_final[frequency][key] = filtered
+                # get hilbert
                 env = filtered.hilbert()
+                # add envelope to dict
                 env_dict[frequency][key] = env
-                analyzed_event['peak amplitude'] = np.max(env)
-                pt = env.times.value[np.argmax(env.value)]
-#                conf, pt = getEstimateAndConfLevel(env.times.value, env.value, 0.68)
-                #analyzed_event['peak time minimum'] = np.min(conf)
-                #analyzed_event['peak time maximum'] = np.max(conf)
+                # get local max indices
+                local_max_idxs = argrelmax(env)
+                # get global max index
+                global_max_idx = np.argmax(env)
+                # normalize local maxima by global maximum
+                if sum(np.zeros(filtered.size) == filtered.value):
+                    raise ValueError('Station %s has all zeros during this\
+                    time.' % station)
+                try:
+                    lm_normed = env[local_max_idxs[0]] / env[global_max_idx]
+                except:
+                    print local_max_idxs, global_max_idx
+                    print env
+                    print filtered
+                    raise('ValueError')
+                # get index of first local maxima that is 90% of global maximum
+                try:
+                    idx_arrival = np.where(lm_normed > 0.9)[0][0]
+                except:
+                    idx_arrival = np.argmax(lm_normed)
+                # set peak amplitude to that
+                analyzed_event['peak amplitude'] =\
+                    env[local_max_idxs[0][idx_arrival]]
+                # set peak time
+                pt = env.times.value[idx_arrival]
                 analyzed_event['peak time'] = pt
-                # get standard deviation assuming gaussian
+                # get group velocity based on event time
                 analyzed_event['velocity'] = (dist / (pt - self.time))
+                # set some bookkeeping variables
                 analyzed_event['analyzed'] = True
                 analyzed_event['filter frequency'] = frequency
+                # add this event to our table
                 final_table.add_row(analyzed_event)
         if return_envelopes:
             return final_table, env_dict, filtered_final
@@ -296,7 +326,6 @@ def load_file(fname, delim, comment_str):
 def getLeapSeconds(UTC_time):
 
     from obspy.core.utcdatetime import UTCDateTime
-    import datetime
 
     # List of leap seconds since GPS zero time (00:00:00, Jan. 6, 1980).
     # References: tf.nist.gov/pubs/bulletin/leapsecond.htm
