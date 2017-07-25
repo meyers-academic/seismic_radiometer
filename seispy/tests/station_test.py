@@ -11,8 +11,8 @@ import obspy
 class TestStation(unittest.TestCase):
     def test_spiral(self):
         array = spiral(5, radius=1, height=0, n_per_turn=4)
-        npt.assert_almost_equal(array[0], [1, 0, 0])
-        npt.assert_almost_equal(array[4], [1, 0, 0])
+        npt.assert_almost_equal(array[0], [0, 0, 0]) # first station in list is origin by default
+        npt.assert_almost_equal(array[4], [0, 0, 0])
 
     def test_homestake(self):
         # check a few cases
