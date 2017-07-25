@@ -433,14 +433,9 @@ class SeismometerArray(OrderedDict):
             k=2*pi*frequency/v
             z=-station[2] # IS THIS CORRECT? HOW TO COMPUTE DEPTH OF EACH STATION?
 
-            # debugging
-            print str(z)
-
             r1=C1*np.exp(-a1*k*z)+C2*np.exp(-a2*k*z)
             r2=C3*np.exp(-a3*k*z)+C4*np.exp(-a4*k*z)
 
-            print str(r1)
-            print str(r2)
 
             # compute output of each channel
             data[key]['HHE'] = cphi * r1 * Trace(signal, sample_rate=Fs,
