@@ -995,12 +995,6 @@ class SeismometerArray(OrderedDict):
             channels = ['HHE', 'HHN', 'HHZ']
         First = True
         distances = []
-        for station in stations:
-            for station2 in stations:
-                diff_dir = np.asarray(station_locs[station]) -\
-                    np.asarray(station_locs[station2])
-                distances.append(np.sqrt(np.dot(diff_dir,diff_dir)))
-        maxd = np.max(distances)
         First = 1
         npix2 = hp.nside2npix(nside)
         # get theta and phi
@@ -1156,7 +1150,6 @@ class SeismometerArray(OrderedDict):
                             Y_of_t = P12[:,idx[0]-1:idx[0]+2].sum(axis=1).value
                             # add up the frequency bin we want and adjacent ones
                             # to account for spectral leakage
-                            p12 = cp[idx[0] - 1:idx[0] + 2].sum()
                             n = n[idx[0]-1:idx[0]+2].sum()
                             # reset g
                             g = []
