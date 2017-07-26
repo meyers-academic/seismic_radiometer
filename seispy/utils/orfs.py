@@ -3,6 +3,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 from scipy.special import sph_harm
 from .utils import calc_travel_time, calc_travel_time2
+import os.path
 
 def orf_p(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1,
         phimesh=1):
@@ -311,8 +312,9 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
     gamma2 = sf2 * np.exp(-2*np.pi*1j*f*dt)
     return gamma1,gamma2,phis,thetas
 
-def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, f,
-        thetas=None,phis=None, healpy=False):
+def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
+                      thetas=None,phis=None, healpy=False,
+                      rayleigh_paramfile=None,rayleigh_paramdict=None):
     """
     Calculate r-wave overlap reduction function between
     two channels
@@ -326,11 +328,20 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, 
         location of first sensor
     det2_loc : `list-like`
         location of second sensor
-    vr : `float`
-        velocity of s-wave
     f : `float`
         frequency at which you would like the orf
-
+    thetas: `list-like`
+        OPTIONAL: list of theta coordinate values on which to evaluate ORF
+    phis: `list-like`
+        OPTIONAL: list of phi coordinates at which to evaluate ORF
+    healpy: `boolean`
+        OPTIONAL: use healpix? NOTE: if this is true, thetas and phis should also be given
+    rayleigh_paramfile: `string`
+        OPTIONAL: filename containing parameters for r wave eigenfunctions. If none is specified,
+        default parameters will be used and a warning will be printed
+    rayleigh_paramdict: `dict'
+        OPTIONAL: dict containing values for r-wave eigenfunctions.
+        parameters not specified will default to the values given in rayleigh_paramfile
     Returns
     -------
     gamma1 : `numpy.ndarray`
@@ -340,37 +351,103 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, 
     thetas : `numpy.ndarray`
         theta values
     """
+    # normalize channel 1 and 2 vectors
+    ch1_vec=ch1_vec/np.sqrt(np.dot(ch1_vec,ch1_vec))
+    ch2_vec=ch2_vec/np.sqrt(np.dot(ch2_vec,ch2_vec))
+
+    # read parameters for eigenfunction
+    # assumes bi-exponential model
+    # given in equations 40,41 of seismic radiometer note 
+    # https://zzz.physics.umn.edu/_media/groups/homestake/analysis/directional_analysis_v4.pdf
+    # should be stored as a python dict, with values for these parameters
+    # r1 = C1 exp(-a1*k*z) + C2 exp(-a2*k*z)
+    # r2 = C3 exp(-a3*k*z) + C4 exp(-a4*k*z)
+    # with k = omega/v = 2*pi*f/v
+    if rayleigh_paramfile==None:
+        print 'WARNING: No Rayleigh paramfile specified, using default eigenfunction'
+        a1=0.47
+        a3=0.73
+        a2=1.51
+        a4=0.25
+        v=2504
+        C3=2.7
+        C2=1.29
+        C1=2.29
+        C4=-1.44
+    else:
+        data=np.load(rayleigh_paramfile)[0]
+        C1=data['C1']
+        C2=data['C2']
+        C3=data['C3']
+        C4=data['C4']
+        a1=data['a1']
+        a2=data['a2']
+        a3=data['a3']
+        a4=data['a4']
+        v=data['v']
+    # if a parameter dict is specified, overwrite values 
+    if rayleigh_paramdict==None:
+        pass
+    else:
+        for key in rayleigh_paramdict.keys():
+            if key=='C1':
+                C1=rayleigh_paramdict['C1']
+            elif key=='C2':
+                C2=rayleigh_paramdict['C2']
+            elif key=='C3':
+                C3=rayleigh_paramdict['C3']
+            elif key=='C4':
+                C4=rayleigh_paramdict['C4']
+            elif key=='a1':
+                a1=rayleigh_paramdict['a1']
+            elif key=='a2':
+                a2=rayleigh_paramdict['a2']
+            elif key=='a3':
+                a3=rayleigh_paramdict['a3']
+            elif key=='a4':
+                a4=rayleigh_paramdict['a4']
+            elif key=='v':
+                v=rayleigh_paramdict['v']
+    z1=det1_loc[2] # IS THIS CORRECT? (where is 'earth surface' z=0 defined)
+    z2=det2_loc[2] # IS THIS CORRECT?
+    k=2*np.pi*f/v
+
+    r1_det1=C1*np.exp(-a1*k*z1)+C2*np.exp(-a2*k*z1)
+    r2_det1=C3*np.exp(-a3*k*z1)+C4*np.exp(-a4*k*z1)
+    r1_det2=C1*np.exp(-a1*k*z2)+C2*np.exp(-a2*k*z2)
+    r2_det2=C3*np.exp(-a3*k*z2)+C4*np.exp(-a4*k*z2)
+
+
     # get separation vector
     x_vec = np.array(det1_loc) - np.array(det2_loc)
-    # make it a unit vector
+    # initialize angle arrays
     if thetas is None:
         thetas = np.arange(3,180,6) * np.pi / 180
     if phis is None:
         phis = np.arange(3,360,6) * np.pi / 180
+    # define angle meshes. different for healpy vs non-healpy
     if healpy:
         THETAS = thetas
         PHIS = phis
     else:
         THETAS, PHIS = np.meshgrid(thetas, phis)
     # much faster to vectorize things
+    # unit vector in direction of wave propagation
+    # NOTE: OmgZ should be 0 for surface wave, but we'll allow it for now
     OmgX = np.sin(THETAS)*np.cos(PHIS)
     OmgY = np.sin(THETAS)*np.sin(PHIS)
     OmgZ = (np.cos(THETAS))
-    # R-wave stuff
-    R1 = np.cos(PHIS)
-    R2 = np.sin(PHIS)
-    R3 = np.exp(1j * np.pi / 2) * epsilon
-    # get vector perp to Omega
-    # take cross product of omega and psi to
-    # get third vector
-    sf1 = (R1*ch1_vec[0] + R2*ch1_vec[1] + R3*ch1_vec[2])
-    sf2 = (R1*ch2_vec[0] + R2*ch2_vec[1] + R3*ch2_vec[2])
 
     omg_shape = OmgX.shape
     OMEGA = np.vstack((OmgX.flatten(), OmgY.flatten(), OmgZ.flatten())).T
-    dt = calc_travel_time2(x_vec, OMEGA, vr).reshape(omg_shape)
-    gamma = sf1*np.conj(sf2)*np.exp(-2*np.pi*1j*f*dt) * np.exp(-(det1_loc[2] +
-        det2_loc[2]) / float(alpha))
+
+    dt = calc_travel_time2(x_vec, OMEGA, v).reshape(omg_shape)
+
+    sf1 = (r1_det1*np.dot(OMEGA,ch1_vec)+r2_det1*np.exp(1j*np.pi/2)*ch1_vec[2]).reshape(omg_shape)
+    sf2 = (r1_det2*np.dot(OMEGA,ch1_vec)+r2_det2*np.exp(1j*np.pi/2)*ch2_vec[2]).reshape(omg_shape)
+
+    gamma = sf1*np.conj(sf2)*np.exp(+2*np.pi*1j*f*dt)
+
     return gamma,phis,thetas
 
 def ccStatReadout_s_wave(Y, sigma, ch1_vec, ch2_vec, det1_loc, det2_loc, vs, thetamesh=1,phimesh=1):
@@ -548,11 +625,13 @@ def orf_p_sph(l,m,ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1
                 OmgZ*x_vec[0])/vp) * (dtheta*dphi*3/(4*np.pi))))
     return gammas, ff
 
-def orf_picker(string, ch1_vec, ch2_vec, det1_loc, det2_loc, v, f, thetas=None,
-        phis=None, epsilon=0.1, alpha=1000, healpy=False):
+def orf_picker(string, ch1_vec, ch2_vec, det1_loc, det2_loc, v,f, thetas=None,
+               phis=None, healpy=False,rayleigh_paramfile=None,rayleigh_paramdict=None):
     if string is 'r':
-        g1, p, t =  orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon,
-                alpha, v, f, thetas=thetas, phis=phis, healpy=healpy)
+        g1, p, t =  orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
+                                      f, thetas=thetas, phis=phis, healpy=healpy,
+                                      rayleigh_paramfile=rayleigh_paramfile,
+                                      rayleigh_paramdict=rayleigh_paramdict)
         return g1.reshape((g1.size,1)), g1.shape
     if string is 's':
         g1, g2, p, t =  orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
