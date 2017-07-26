@@ -1,20 +1,18 @@
 from __future__ import division
 from collections import OrderedDict
-from warnings import warn
+#from warnings import warn
 from ..utils import *
 import astropy.units as u
-from gwpy.timeseries import TimeSeries
+#from gwpy.timeseries import TimeSeries
 from ..noise import gaussian
 from ..trace import Trace, fetch
 from ..recoverymap import RecoveryMap
 import numpy as np
 from scipy.sparse.linalg import lsqr
-from scipy.linalg import svd, pinv, pinv2, cholesky, lu, lu_factor, eigh
+from scipy.linalg import  (pinv2)#, pinv2, svd, cholesky, lu, lu_factor, eigh)
 from gwpy.frequencyseries import FrequencySeries
 from .station import StationArray, homestake
-import geographiclib.geodesic as ggg
 import healpy as hp
-import pkg_resources
 
 class Seismometer(OrderedDict):
     """
@@ -341,7 +339,6 @@ class SeismometerArray(OrderedDict):
         # shift backward in time
         times += ts
         data = SeismometerArray()
-        ct = 0
         for key in stations.keys():
             data[key] = {}
             station = stations[key]
@@ -399,8 +396,8 @@ class SeismometerArray(OrderedDict):
         a4=rwave_params['a4']
         v=rwave_params['v']
 
-        # sines and cosines of source direction        
-        if theta != pi/2:
+        # sines and cosines of source direction
+        if theta != np.pi/2:
             print 'WARNING: Injecting R-Wave and theta!=pi/2'
         cphi = np.cos(phi)
         sphi = np.sin(phi)
@@ -411,7 +408,7 @@ class SeismometerArray(OrderedDict):
         src_dir = np.array([cphi * stheta, sphi * stheta, ctheta])
 
         # initialize data and times data structures
-        data = SeismometerArray() 
+        data = SeismometerArray()
         times = np.arange(0, duration, 1 / Fs)
         for key in stations.keys():
             data[key] = {}
@@ -429,10 +426,9 @@ class SeismometerArray(OrderedDict):
                 # signal, so we multiply this by two.
                 signal = amplitude * np.cos(2 * np.pi * frequency * (times + delay) + phase)
                 signal_phaseoff = amplitude * np.sin(2 * np.pi * frequency * (times + delay) + phase)
-                        
             # compute eigenfunctions for this station
-            k=2*pi*frequency/v
-            z=-station[2] # IS THIS CORRECT? HOW TO COMPUTE DEPTH OF EACH STATION?
+            k=2*np.pi*frequency/v
+            z=station[2] # IS THIS CORRECT? HOW TO COMPUTE DEPTH OF EACH STATION?
 
             r1=C1*np.exp(-a1*k*z)+C2*np.exp(-a2*k*z)
             r2=C3*np.exp(-a3*k*z)+C4*np.exp(-a4*k*z)
@@ -543,14 +539,14 @@ class SeismometerArray(OrderedDict):
         """
         if rayleigh_paramfile==None and rayleigh_paramdict==None:
             print 'WARNING: No Rayleigh paramfile specified for injection, using default eigenfunction'
-            rwave_params={'a1': 0.47, 
-                          'a3': 0.73, 
-                          'a2': 1.51, 
-                          'a4': 0.25, 
-                          'v': 2504, 
-                          'C3': 2.7, 
-                          'C2': -1.29, 
-                          'C1': 2.29, 
+            rwave_params={'a1': 0.47,
+                          'a3': 0.73,
+                          'a2': 1.51,
+                          'a4': 0.25,
+                          'v': 2504,
+                          'C3': 2.7,
+                          'C2': -1.29,
+                          'C1': 2.29,
                           'C4': -1.4400000000000002}
         elif rayleigh_paramfile is not None:
             rwave_params=np.load(rayleigh_paramfile)[0]
@@ -667,7 +663,7 @@ class SeismometerArray(OrderedDict):
         distances = []
         for station in stations:
             for station2 in stations:
-                diff_dir = station_locs[station] - station_locs[stations2]
+                diff_dir = station_locs[station] - station_locs[station2]
                 distances.append(np.sqrt(np.dot(diff_dir,diff_dir)))
         maxd = np.max(distances)
 
@@ -747,10 +743,6 @@ class SeismometerArray(OrderedDict):
                  btol=btol, calc_var=True)
         R = S[-1] * np.real(GG)
         print R
-        G_inv = np.linalg.pinv(np.real(GG))
-        plt.pcolormesh(R, cmap='viridis')
-        plt.colorbar()
-        plt.savefig('resolution_matrix')
         maps = {}
         idx_low = 0
         # separate result into proper maps
@@ -793,43 +785,6 @@ class SeismometerArray(OrderedDict):
         print('Converged to a relative residual of ' + str(S[3] /
                                                            np.sqrt((np.abs(GY.value) ** 2).sum())))
         return maps, phis, thetas
-    def get_ffts(self, recovery_freq, channels=None, fftlength=2,
-            overlap=1, window='hann',nproc=8):
-        """TODO: Docstring for get_ffts.
-
-        Parameters
-        ----------
-        recovery_Freq : TODO
-
-        Returns
-        -------
-        TODO
-
-        """
-        stations = self.keys()
-        if channels is None:
-            channels = ['HHE','HHN','HHZ']
-        First = 1
-        data_samples = []
-        for ii, station1 in enumerate(stations):
-            for kk, channel in enumerate(channels):
-                # get csd spectrogram
-                fftgram_temp = \
-                    fftgram(self[station1][channels[kk]],stride=fftlength
-                                                         )
-                # get covariance matrix entry
-                cp = fftgram_temp.mean(0)
-                idx = \
-                    np.where(cp.frequencies.value == float(recovery_freq))[0]
-
-                amax =  np.argmax(fftgram_temp[0,:])
-                fft_of_t = fftgram_temp[:,idx[0]-1:idx[0]+2].sum(axis=1).value
-                if First:
-                    data_samples = fft_of_t.T
-                    First = 0
-                else:
-                    data_samples = np.vstack((data_samples, fft_of_t.T))
-        return data_samples
 
     def get_coherences_bband(self, flow, fhigh, channels=None, fftlength=2,
             overlap=1, window='hann',nproc=8):
