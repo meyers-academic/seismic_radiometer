@@ -356,13 +356,6 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, epsilon, alpha, vr, 
     OmgX = np.sin(THETAS)*np.cos(PHIS)
     OmgY = np.sin(THETAS)*np.sin(PHIS)
     OmgZ = (np.cos(THETAS))
-    # only theta = pi/2 sticks around, okay? ok.
-    #OmgX[THETAS < np.pi / 2] = 0
-    #OmgY[THETAS < np.pi / 2] = 0
-    #OmgZ[THETAS < np.pi / 2] = 0
-    #OmgX[THETAS > np.pi / 2] = 0
-    #OmgY[THETAS > np.pi / 2] = 0
-    #OmgZ[THETAS > np.pi / 2] = 0
     # R-wave stuff
     R1 = np.cos(PHIS)
     R2 = np.sin(PHIS)
@@ -416,8 +409,6 @@ def ccStatReadout_s_wave(Y, sigma, ch1_vec, ch2_vec, det1_loc, det2_loc, vs, the
     thetas = np.arange(0,181,thetamesh) * np.pi / 180
     phis = np.arange(0,360,phimesh) * np.pi / 180
     THETAS, PHIS = np.meshgrid(thetas, phis)
-    dtheta = thetas[1] - thetas[0]
-    dphi = phis[1] - phis[0]
     # much faster to vectorize things
     OmgX = np.sin(THETAS)*np.cos(PHIS)
     OmgY = np.sin(THETAS)*np.sin(PHIS)
