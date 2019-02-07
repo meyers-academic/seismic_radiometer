@@ -251,6 +251,43 @@ class EventTable(Table):
         super(EventTable, self).__init__(**kwargs)
 
     @classmethod
+    def read_iris_db(cls, db_file, window_file=None):
+        ev = Table.read(db_file, format='ascii')
+        ev.rename_column('EventID','evID')
+        if window_file is not None:
+            evIDs = []
+            if (os.path.isfile(window_file)):
+                wf_raw = load_file(window_file,"|","#")
+
+                # Turn wf into a dictionary.
+                wf_tab = Table(names=['evID','win_start',
+                'taper_start','win_end','taper_end'])
+                for wf_i in wf_raw:
+                    if (wf_i[0] not in wf_tab['evID']):
+                        evIDs.append(int(wf_i[0]))
+                        wf_tab.add_row(wf_i)
+                    else:
+                        raise KeyError('Duplicate event: key already in wf.')
+            else:
+                wf_tab = None
+        else:
+            wf_tab = None
+        short_table = Table()
+        if wf_tab is not None:
+            good_events = evIDs
+            long_table = ev[ev['evID']==good_events]
+            short_table.add_columns([long_table['Latitude'],long_table['Longitude'],long_table['Time']])
+            short_table.add_columns(wf_tab.columns.values())
+        else:
+            short_table.add_columns([ev['Latitude'],ev['Longitude'],ev['Time']])
+        short_table['Time'] = [UTCDateTime(short_table['Time'][ii]) for ii in
+                range(len(short_table['Time']))]
+        short_table.rename_column('Time','time')
+        short_table.rename_column('Latitude','latitude')
+        short_table.rename_column('Longitude','longitude')
+        return short_table
+
+    @classmethod
     def read_seis_db(cls, db_file, window_file=None):
         ev = Table.read(db_file, format='ascii')
         ev.rename_column('col1','latitude')
@@ -261,6 +298,7 @@ class EventTable(Table):
         for ii in range(len(ev)):
             if ev['col23'][ii]=='-':
                 remove_rows.append(ii)
+        print remove_rows
         ev.remove_rows(remove_rows)
         # sort by time
         ev.sort('time')
@@ -281,6 +319,8 @@ class EventTable(Table):
                         raise KeyError('Duplicate event: key already in wf.')
             else:
                 wf_tab = None
+        else:
+            wf_tab = None
         short_table = Table()
         if wf_tab is not None:
             good_events = evIDs
@@ -291,7 +331,7 @@ class EventTable(Table):
             short_table.add_columns([ev['latitude'],ev['longitude'],ev['time']])
         short_table['time'] = [UTCDateTime(short_table['time'][ii]) for ii in
                 range(len(short_table['time']))]
-        return short_table
+        return short_table, long_table
 def load_file(fname, delim, comment_str):
     '''
     Helper function for loading delimited text files.
@@ -372,7 +412,8 @@ def utc2gps(UTC_time):
     time_zero = UTCDateTime(1980,1,6,0)
 
     # Get total number of UTC seconds since the beginning of GPS time.
-    UTC_seconds = UTC_time.timestamp - time_zero.timestamp
+    if isinstance(UTC_time, UTCDateTime):
+        UTC_seconds = UTC_time.timestamp - time_zero.timestamp
 
     # Raise error if time requested is before beginning of GPS time.
     if (UTC_seconds < 0):

@@ -79,7 +79,7 @@ class StationArray(OrderedDict):
         return plt
 
 
-def spiral(N, radius=1000, height=100, n_per_turn=10, offset=0, origin=None):
+def spiral(N, radius=1000, maxheight=1000, n_per_turn=10, offset=0, origin=None):
     """
     return a spiral array pattern
 
@@ -103,8 +103,10 @@ def spiral(N, radius=1000, height=100, n_per_turn=10, offset=0, origin=None):
     """
     stations = StationArray()
     for ii in range(N):
-        stations[ii] = offset + radius * np.array([np.cos((1/n_per_turn)*2*np.pi*ii),
-            np.sin((1/n_per_turn)*2*np.pi*ii), ii*height/radius])
+        rad = min(1, (ii+1) * (1/float(N)))*radius
+        height = maxheight * np.random.rand(1)
+        stations[ii] = offset + rad * np.array([np.cos((1/n_per_turn)*2*np.pi*ii),
+            np.sin((1/n_per_turn)*2*np.pi*ii), height/rad])
 
     # shift origin
     stations.shift_origin(origin)

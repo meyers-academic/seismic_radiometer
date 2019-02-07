@@ -13,27 +13,27 @@ class TestOrfs(unittest.TestCase):
     test overlap reduction functions for s and p-waves
     """
 
-    def test_orfp(self):
-        # get them for colocated detectors
-        # should be all ones
-        gamma, freqs = \
-            orf_p(np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), 1000)
-        test = np.ones(gamma.size)
-        npt.assert_array_almost_equal(gamma, test)
-
-    def test_orfs(self):
-        # get them for colocated detectors
-        # should be all ones
-        gamma, freqs = \
-            orf_s(np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), 1000)
-        test = np.ones(gamma.size)
-        npt.assert_array_almost_equal(gamma, test, decimal=4)
+#     def test_orfp(self):
+#         # get them for colocated detectors
+#         # should be all ones
+#         gamma, freqs = \
+#             orf_p(np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), 1000)
+#         test = np.ones(gamma.size)
+#         npt.assert_array_almost_equal(gamma, test)
+# 
+#     def test_orfs(self):
+#         # get them for colocated detectors
+#         # should be all ones
+#         gamma, freqs = \
+#             orf_s(np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), 1000)
+#         test = np.ones(gamma.size)
+#         npt.assert_array_almost_equal(gamma, test, decimal=4)
 
     def test_orfp_dir(self):
         # for same detector, same channel, source along channel direction, we
         # expect orf to be 1.
         gamma, phis, thetas = \
-            orf_p_directional(np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), np.asarray([1, 0, 0]),
+            orf_p_directional2(np.asarray([1, 0, 0]), np.asarray([1, 0, 0]), np.asarray([1, 0, 0]),
                               np.asarray([1, 0, 0]), 1000,
                               1, thetas=np.array([np.pi / 2, np.pi / 2]),
                               phis=np.array([0, 0]))
@@ -82,12 +82,11 @@ class TestUtils(unittest.TestCase):
         v = 1000
         delta_vec = [0, 0, 0]
         OMEGA = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-        dt = calc_travel_time(delta_vec, OMEGA, v)
+        dt = calc_travel_time2(delta_vec, OMEGA, v)
         npt.assert_array_almost_equal(dt, np.zeros(dt.size))
         delta_vec = [1000, 0, 0]
-        dt = calc_travel_time(delta_vec, OMEGA, v)
+        dt = calc_travel_time2(delta_vec, OMEGA, v)
         npt.assert_array_almost_equal(dt, np.array([1, 0, 0]))
-
 
 if __name__ == "__main__":
     unittest.main()
