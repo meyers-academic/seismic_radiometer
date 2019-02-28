@@ -2,8 +2,7 @@ from __future__ import division
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.special import sph_harm
-from .utils import calc_travel_time, calc_travel_time2
-import os.path
+from .utils import calc_travel_time2
 
 def orf_p(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1,
         phimesh=1):
@@ -178,7 +177,7 @@ def orf_p_directional2(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetas=None,
     sf = ((OmgX*ch1_vec[0] +
             OmgY*ch1_vec[1] + OmgZ*ch1_vec[2]) * (OmgX*ch2_vec[0] +
             OmgY*ch2_vec[1] + OmgZ*ch2_vec[2]))
-    gammas = sf *  np.exp(-2*np.pi*1j*f*dt)
+    gammas = sf *  np.exp(2*np.pi*1j*f*dt)
     return gammas, phis, thetas
 
 
@@ -239,7 +238,7 @@ def orf_p_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, f, thetas=None,
     sf = ((OmgX*ch1_vec[0] +
             OmgY*ch1_vec[1] + OmgZ*ch1_vec[2]) * (OmgX*ch2_vec[0] +
             OmgY*ch2_vec[1] + OmgZ*ch2_vec[2]))
-    gammas = sf *  np.exp(-2*np.pi*1j*f*dt)
+    gammas = sf *  np.exp(2*np.pi*1j*f*dt)
     return gammas, phis, thetas
 
 def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
@@ -285,8 +284,8 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
         PHIS = phis
     else:
         THETAS, PHIS = np.meshgrid(thetas, phis)
-    dtheta = thetas[1] - thetas[0]
-    dphi = phis[1] - phis[0]
+    # dtheta = thetas[1] - thetas[0]
+    # dphi = phis[1] - phis[0]
     # much faster to vectorize things
     OmgX = np.sin(THETAS)*np.cos(PHIS)
     OmgY = np.sin(THETAS)*np.sin(PHIS)
@@ -308,13 +307,13 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
     omg_shape = OmgX.shape
     OMEGA = np.vstack((OmgX.flatten(), OmgY.flatten(), OmgZ.flatten())).T
     dt = calc_travel_time2(x_vec, OMEGA, vs).reshape(omg_shape)
-    gamma1 = sf1 * np.exp(-2*np.pi*1j*f*dt)
-    gamma2 = sf2 * np.exp(-2*np.pi*1j*f*dt)
+    gamma1 = sf1 * np.exp(2*np.pi*1j*f*dt)
+    gamma2 = sf2 * np.exp(2*np.pi*1j*f*dt)
     return gamma1,gamma2,phis,thetas
 
 def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
                       thetas=None,phis=None, healpy=False,
-                      rayleigh_paramfile=None,rayleigh_paramdict=None):
+                      rayleigh_paramfile=None,rayleigh_paramdict=None, v=None):
     """
     Calculate r-wave overlap reduction function between
     two channels
@@ -364,38 +363,39 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
     # r2 = C3 exp(-a3*k*z) + C4 exp(-a4*k*z)
     # with k = omega/v = 2*pi*f/v
     if rayleigh_paramfile==None:
-        print 'WARNING: No Rayleigh paramfile specified, using default eigenfunction'
-        a1=0.47
-        a3=0.73
-        a2=1.51
-        a4=0.25
-        v=2504
-        C3=2.7
-        C2=1.29
-        C1=2.29
-        C4=-1.44
+        #print 'WARNING: No Rayleigh paramfile specified, using default eigenfunction'
+        a1=0.86
+        a2=0.63
+        a3=0.49
+        a4=0.81
+        if v is None:
+            v=3250
+        C2=-0.76
+        C4=-0.69
+        Nvh=-0.68
     else:
         data=np.load(rayleigh_paramfile)[0]
-        C1=data['C1']
+        # C1=data['C1']
         C2=data['C2']
-        C3=data['C3']
+        # C3=data['C3']
         C4=data['C4']
         a1=data['a1']
         a2=data['a2']
         a3=data['a3']
         a4=data['a4']
-        v=data['v']
+        if v is None:
+            v=data['v']
     # if a parameter dict is specified, overwrite values 
     if rayleigh_paramdict==None:
         pass
     else:
         for key in rayleigh_paramdict.keys():
-            if key=='C1':
-                C1=rayleigh_paramdict['C1']
-            elif key=='C2':
+            # if key=='C1':
+            #     C1=rayleigh_paramdict['C1']
+            if key=='C2':
                 C2=rayleigh_paramdict['C2']
-            elif key=='C3':
-                C3=rayleigh_paramdict['C3']
+            # elif key=='C3':
+            #     C3=rayleigh_paramdict['C3']
             elif key=='C4':
                 C4=rayleigh_paramdict['C4']
             elif key=='a1':
@@ -408,14 +408,16 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
                 a4=rayleigh_paramdict['a4']
             elif key=='v':
                 v=rayleigh_paramdict['v']
-    z1=-det1_loc[2] # IS THIS CORRECT? (where is 'earth surface' z=0 defined)
-    z2=-det2_loc[2] # IS THIS CORRECT?
+    z1=det1_loc[2] # IS THIS CORRECT? (where is 'earth surface' z=0 defined)
+    z2=det2_loc[2] # IS THIS CORRECT?
     k=2*np.pi*f/v
 
-    r1_det1=C1*np.exp(-a1*k*z1)+C2*np.exp(-a2*k*z1)
-    r2_det1=C3*np.exp(-a3*k*z1)+C4*np.exp(-a4*k*z1)
-    r1_det2=C1*np.exp(-a1*k*z2)+C2*np.exp(-a2*k*z2)
-    r2_det2=C3*np.exp(-a3*k*z2)+C4*np.exp(-a4*k*z2)
+    r1_det1=(np.exp(-a1*k*z1)+C2*np.exp(-a2*k*z1)) * (1./(1+C2))
+    r2_det1=(np.exp(-a3*k*z1)+C4*np.exp(-a4*k*z1)) * (Nvh / (1.+C4))
+    r1_det2=(np.exp(-a1*k*z2)+C2*np.exp(-a2*k*z2)) * (1./(1+C2))
+    r2_det2=(np.exp(-a3*k*z2)+C4*np.exp(-a4*k*z2)) * (Nvh / (1.+C4))
+    # r1_det2=C1*np.exp(-a1*k*z2)+C2*np.exp(-a2*k*z2)
+    # r2_det2=C3*np.exp(-a3*k*z2)+C4*np.exp(-a4*k*z2)
 
 
     # get separation vector
@@ -444,9 +446,9 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
     dt = calc_travel_time2(x_vec, OMEGA, v).reshape(omg_shape)
 
     sf1 = (r1_det1*np.dot(OMEGA,ch1_vec)+r2_det1*np.exp(1j*np.pi/2)*ch1_vec[2]).reshape(omg_shape)
-    sf2 = (r1_det2*np.dot(OMEGA,ch1_vec)+r2_det2*np.exp(1j*np.pi/2)*ch2_vec[2]).reshape(omg_shape)
+    sf2 = (r1_det2*np.dot(OMEGA,ch2_vec)+r2_det2*np.exp(1j*np.pi/2)*ch2_vec[2]).reshape(omg_shape)
 
-    gamma = sf1*np.conj(sf2)*np.exp(+2*np.pi*1j*f*dt)
+    gamma = np.conj(sf1)*sf2*np.exp(2*np.pi*1j*f*dt)
 
     return gamma,phis,thetas
 
@@ -486,8 +488,6 @@ def ccStatReadout_s_wave(Y, sigma, ch1_vec, ch2_vec, det1_loc, det2_loc, vs, the
     thetas = np.arange(0,181,thetamesh) * np.pi / 180
     phis = np.arange(0,360,phimesh) * np.pi / 180
     THETAS, PHIS = np.meshgrid(thetas, phis)
-    dtheta = thetas[1] - thetas[0]
-    dphi = phis[1] - phis[0]
     # much faster to vectorize things
     OmgX = np.sin(THETAS)*np.cos(PHIS)
     OmgY = np.sin(THETAS)*np.sin(PHIS)
@@ -555,8 +555,8 @@ def ccStatReadout_p_wave(Y, sigma, ch1_vec, ch2_vec, det1_loc, det2_loc, vs, the
     thetas = np.arange(0,181,thetamesh) * np.pi / 180
     phis = np.arange(0,360,phimesh) * np.pi / 180
     THETAS, PHIS = np.meshgrid(thetas, phis)
-    dtheta = thetas[1] - thetas[0]
-    dphi = phis[1] - phis[0]
+    # dtheta = thetas[1] - thetas[0]
+    # dphi = phis[1] - phis[0]
     # much faster to vectorize things
     OmgX = np.sin(THETAS)*np.cos(PHIS)
     OmgY = np.sin(THETAS)*np.sin(PHIS)
@@ -633,7 +633,8 @@ def orf_picker(string, ch1_vec, ch2_vec, det1_loc, det2_loc, v,f, thetas=None,
         g1, p, t =  orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
                                       f, thetas=thetas, phis=phis, healpy=healpy,
                                       rayleigh_paramfile=rayleigh_paramfile,
-                                      rayleigh_paramdict=rayleigh_paramdict)
+                                      rayleigh_paramdict=rayleigh_paramdict,v=v
+                                      )
         return g1.reshape((g1.size,1)), g1.shape
     if string is 's':
         g1, g2, p, t =  orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,

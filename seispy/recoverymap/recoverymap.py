@@ -25,7 +25,7 @@ class RecoveryMap(object):
         """
         map_shape=self.data.shape
         flat_map = self.data.flatten().squeeze()
-        flat_map[flat_map < 0] = 0
+        #flat_map[flat_map < 0] = 0
         args = np.argsort(flat_map)[::-1]
         cdf = flat_map[args].cumsum()
         cdf = cdf/cdf[-1]

@@ -10,6 +10,17 @@ from lal import CreateREAL8FrequencySeries
 from lal import CreateREAL8TimeSeries
 from lalsimulation import SimNoise
 from gwpy.spectrogram import Spectrogram
+import pickle
+
+# save object
+def save_obj(obj, name ):
+    with open(name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+# load object
+def load_obj(name ):
+    with open(name + '.pkl', 'rb') as f:
+        return pickle.load(f)
 
 def fftgram(ts, stride):
     """Calculate the Fourier-gram of this `TimeSeries`.

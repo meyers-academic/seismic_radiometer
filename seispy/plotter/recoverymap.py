@@ -18,11 +18,19 @@ class RecoveryMapAxes(AitoffAxes):
     def __init__(self, *args, **kwargs):
         super(RecoveryMapAxes, self).__init__(*args, **kwargs)
 
-    def add_map(self, rec_map):
+    def add_map(self, rec_map, **kwargs):
         dtheta = rec_map.thetas[1] - rec_map.thetas[0]
         dphi = rec_map.phis[1] - rec_map.phis[0]
-        self.pcolormesh(rec_map.phis - np.pi - dphi/2, np.pi / 2 - rec_map.thetas + dtheta/2, rec_map.data.T,
-        cmap='viridis')
+        # shift from 0,2pi to -pi,pi
+        phis = rec_map.phis.copy()
+        newphis = np.zeros(phis.size)
+        newphis[phis>np.pi] = phis[phis > np.pi] - 2 * np.pi
+        newphis[phis<=np.pi] = phis[phis<=np.pi]
+        args = np.argsort(newphis)
+        print newphis[args]
+        self.pcolormesh(newphis[args] - dphi/2, np.pi / 2 - rec_map.thetas +
+                        dtheta/2, rec_map.data[args,:].T,
+                        **kwargs)
 
 register_projection(RecoveryMapAxes)
 
@@ -31,18 +39,17 @@ class RecoveryMapPlot(Plot):
     recovery map plot
     """
     _DefaultAxesClass = RecoveryMapAxes
-    def __init__(self, recovery_map, contour=True, **kwargs):
+    def __init__(self, recovery_map, contour=True, cmap='viridis',vmin=None,
+            vmax=None, conf=None, **kwargs):
         super(RecoveryMapPlot, self).__init__(**kwargs)
         dtheta = recovery_map.thetas[1] - recovery_map.thetas[0]
         dphi = recovery_map.phis[1] - recovery_map.phis[0]
-        try:
-            conf = kwargs.pop('conf')
-        except KeyError:
+        if conf is None:
             conf = 0.5
-        conf_map, phil, thetal = recovery_map.get_contour(conf)
+        #conf_map, phil, thetal = recovery_map.get_contour(conf)
         self.recovery_map = recovery_map
         ax = self.gca()
-        ax.add_map(recovery_map)
+        ax.add_map(recovery_map, **{'cmap':cmap,'vmin':vmin,'vmax':vmax})
         ax.grid()
         for tick in ax.xaxis.get_major_ticks():
             tick.label.set_fontsize(10)
@@ -52,6 +59,18 @@ class RecoveryMapPlot(Plot):
         cbar = self.add_colorbar(label=r'amplitude [$\textrm{m}^2$]')
         cbar.ax.tick_params(labelsize=10)
         self.cbar=cbar
+        S_sorted = np.sort(recovery_map.data.flatten())[::-1]
+        S_cdf = S_sorted.cumsum() / S_sorted.cumsum()[-1]
+        #print S_sorted[S_cdf < conf]
+        contour_val = np.min(np.real(S_sorted[S_cdf < conf]))
+        total_power = np.sum(np.real(S_sorted[S_cdf < conf]))
+        ax.set_title('Total power in spot is: %4.2e m$^2$ / Hz' % total_power,
+                y=1.08)
         if contour:
-            ax.contour(recovery_map.phis - np.pi - dphi/2, np.pi / 2 - recovery_map.thetas + dtheta / 2,
-                   conf_map.T, colors='k', linewidth=4, levels=[0])
+            phis = recovery_map.phis.copy()
+            newphis = np.zeros(phis.size)
+            newphis[phis>np.pi] = phis[phis > np.pi] - 2 * np.pi
+            newphis[phis<=np.pi] = phis[phis<=np.pi]
+            ax.contour(newphis - dphi/2, np.pi / 2 - recovery_map.thetas + dtheta / 2,
+                   recovery_map.data.T, colors='k', linewidth=4,
+                   levels=[contour_val])
