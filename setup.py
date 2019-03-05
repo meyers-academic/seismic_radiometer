@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (C) Patrick Meyers (2013)
+# Copyright (C) Patrick Meyers (2019)
 #
-# This file is part of SeisMon
+# This file is part of code for the seismic_radiometer package
 #
-# SeisMon is free software: you can redistribute it and/or modify
+# seismic_radiometer is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# SeisMon is distributed in the hope that it will be useful,
+# seismic_radiometer is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU General Public License
 # along with SeisMon.  If not, see <http://www.gnu.org/licenses/>
 
-"""Setup script for SeisMon
+"""Setup script for seismic_radiometer
 """
 
 import glob
@@ -28,52 +28,29 @@ from setuptools.command.install import install
 from distutils.core import Extension
 from distutils.command.build import build
 import sys
-from utils import version
 import numpy
-class CustomBuild(build):
-    sub_commands = [
-        ('build_ext', build.has_ext_modules),
-        ('build_py', build.has_pure_modules),
-        ('build_clib', build.has_c_libraries),
-        ('build_scripts', build.has_scripts),
-    ]
-class CustomInstall(install):
-    def run(self):
-        self.run_command('build_ext')
-        self.do_egg_install()
+
 
 PACKAGENAME = 'seispy'
 
-VERSION_PY = os.path.join(PACKAGENAME, 'version.py')
 
 # set version information
-vcinfo = version.GitStatus()
-vcinfo(VERSION_PY)
 
-DESCRIPTION = 'Basketball data analysis'
+DESCRIPTION = 'Seismic Radiometer'
 LONG_DESCRIPTION = ''
 AUTHOR = 'Patrick Meyers'
 AUTHOR_EMAIL = 'patrick.meyers@ligo.org'
 LICENSE = 'GPLv3'
 
 # VERSION should be PEP386 compatible (http://www.python.org/dev/peps/pep-0386)
-VERSION = vcinfo.version
-
-# Indicates if this version is a release version
-RELEASE = vcinfo.version != vcinfo.id and 'dev' not in VERSION
 
 # Use the find_packages tool to locate all packages and modules
 packagenames = find_packages(exclude=['utils'])
 
 # find all scripts
-#sys.path.append(glob.glob('~/opt/seispy/lib/python2.7/site-packages/numpy/f2py/src/'))
 scripts = glob.glob('bin/*')
-#module1 = Extension('_lsqr', sources=['lsqr_wrap.c', 'seispy/clsqr2/lsqr.c',
-#    'seispy/clsqr2/lsqrblas.c'])
 
 setup(name=PACKAGENAME,
-      cmdclass={'build': CustomBuild, 'install': CustomInstall},
-      version=VERSION,
       description=DESCRIPTION,
       scripts=scripts,
       packages=packagenames,

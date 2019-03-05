@@ -7,6 +7,7 @@ from astropy import units as u
 import geographiclib.geodesic as ggg
 import obspy.core.trace
 
+
 class Trace(TimeSeries):
     """class for doing seismic data analysis, inherited from gwpy TimeSeries"""
 
@@ -73,9 +74,10 @@ class Trace(TimeSeries):
         dt = 1 / self.sample_rate.value
 
         # Set up taper lengths
-        if all(k in kwargs for k in ('v_min','v_max','dist')):
-            dur_t1 = float(kwargs['dist']/kwargs['v_max'])
-            dur_t2 = (arr.size*dt) - (float(kwargs['dist']/kwargs['v_min']) + 60)
+        if all(k in kwargs for k in ('v_min', 'v_max', 'dist')):
+            dur_t1 = float(kwargs['dist'] / kwargs['v_max'])
+            dur_t2 = (arr.size * dt) - \
+                (float(kwargs['dist'] / kwargs['v_min']) + 60)
             # Handle case where arrival time is after the end of the data.
             # Taper just last 10 seconds.
             if (dur_t2 <= 10):
@@ -84,18 +86,19 @@ class Trace(TimeSeries):
             dur_t1 = kwargs['event'].taper_start
             dur_t2 = kwargs['event'].taper_end
         else:
-            raise ValueError('kwargs should be v_min, v_max, dist OR event=seisEv.')
+            raise ValueError(
+                'kwargs should be v_min, v_max, dist OR event=seisEv.')
 
         # Make beginning taper.
-        nSamp_t1 = int(np.ceil(dur_t1/dt))
-        samples1 = np.arange(0,nSamp_t1,step=1)
-        taper1 = np.sin(2*np.pi*samples1/(4*(nSamp_t1-1)))
+        nSamp_t1 = int(np.ceil(dur_t1 / dt))
+        samples1 = np.arange(0, nSamp_t1, step=1)
+        taper1 = np.sin(2 * np.pi * samples1 / (4 * (nSamp_t1 - 1)))
 
         # Make end taper.
         # Check if end arrival time is aft
-        nSamp_t2 = int(np.ceil(float(dur_t2)/dt))
-        samples2 = np.arange((nSamp_t2-1), -1, step=-1)
-        taper2 = np.sin(2*np.pi*samples2/(4*(nSamp_t2-1)))
+        nSamp_t2 = int(np.ceil(float(dur_t2) / dt))
+        samples2 = np.arange((nSamp_t2 - 1), -1, step=-1)
+        taper2 = np.sin(2 * np.pi * samples2 / (4 * (nSamp_t2 - 1)))
 
         # Taper data.
         times = self.times.value
@@ -157,7 +160,8 @@ class Trace(TimeSeries):
         """
         new_fft = self.fft()
         # create a gaussian filter
-        exp_array = -(filt_freq - new_fft.frequencies.value) ** 2 / ((filt_width * filt_freq) ** 2)
+        exp_array = -(filt_freq - new_fft.frequencies.value) ** 2 / \
+            ((filt_width * filt_freq) ** 2)
         # multiply fft by our gaussian filter
         new_fft *= np.exp(exp_array)
         # take ifft
@@ -186,9 +190,9 @@ class Trace(TimeSeries):
         # take ifft
         new_ts = new_fft.ifft()
         # get new Trace object
-        new_trace = Trace(new_ts.value, sample_rate=self.sample_rate, name=self.name, epoch=self.epoch, unit=self.unit*u.s)
+        new_trace = Trace(new_ts.value, sample_rate=self.sample_rate,
+                          name=self.name, epoch=self.epoch, unit=self.unit * u.s)
         return new_trace
-
 
     def renormalization(self, Ns=None, type='water_level'):
         """
@@ -226,7 +230,7 @@ class Trace(TimeSeries):
 
         # weighted renormalization
         if type == 'weighted_renorm':
-    # need width to use for weights
+            # need width to use for weights
             if Ns is None:
                 raise ValueError(
                     'if type is weighted_renorm you\
@@ -393,7 +397,7 @@ def fetch(st, et, channel, framedir='./'):
         new_files = sorted(glob.glob(loaddir + '/*.gwf'))
         files.extend(new_files)
     vals = np.asarray([])
-    if len(files)==0:
+    if len(files) == 0:
         raise ValueError('No files found...we looked here: %s' % loaddir)
 
 #    for file in files:
@@ -576,6 +580,8 @@ def fetch_mseed(channel, st, et, basedir='./', cfac=1.589459e-9):
         data = np.hstack((data, dat.value))
     data = cfac * Trace(data, x0=st, dx=dat.dx, channel=channel)
     return data.detrend()
+
+
 coord_dict = {}
 coord_dict['DEAD'] = [44.382699, -103.7532, 1498, 0]
 coord_dict['LHS'] = [44.347299, -103.7748, 1684, 0]
@@ -601,4 +607,3 @@ coord_dict['A4850'] = [44.340499, -103.7625, 115.2, 1478.28]
 coord_dict['B4850'] = [44.346299, -103.7581, 114.9, 1478.28]
 coord_dict['C4850'] = [44.346299, -103.7528, 114.6, 1478.28]
 coord_dict['D4850'] = [44.352999, -103.7505, 115.2, 1478.28]
-
