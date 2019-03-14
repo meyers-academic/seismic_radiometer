@@ -26,9 +26,11 @@ from scipy.signal import argrelmax
 
 analyzed_names = ['latitude', 'longitude', 'time', 'evID',
                   'magnitude', 'win_start', 'win_end', 'taper_start',
-                  'taper_end', 'filter frequency','peak amplitude','peak time','peak time minimum',
-                  'peak time maximum','velocity','bearing','distance',
-                  'channel', 'analyzed','station', 'depth']
+                  'taper_end', 'filter frequency', 'peak amplitude', 
+                  'peak time', 'peak time minimum',
+                  'peak time maximum', 'velocity', 'bearing', 'distance',
+                  'channel', 'analyzed', 'station', 'depth']
+
 
 # TODO we need some unittests for these classes
 # chanObj class.

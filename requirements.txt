@@ -8,3 +8,4 @@ h5py
 lscsoft-glue
 pykerberos
 geographiclib
+deepdish

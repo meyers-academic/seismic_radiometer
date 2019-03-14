@@ -37,8 +37,8 @@ PACKAGENAME = 'seispy'
 # set version information
 
 DESCRIPTION = 'Seismic Radiometer'
-LONG_DESCRIPTION = ''
-AUTHOR = 'Patrick Meyers'
+LONG_DESCRIPTION = 'Code for handling seismic events and seismic data.'
+AUTHOR = 'Patrick Meyers, Andrew Matas'
 AUTHOR_EMAIL = 'patrick.meyers@ligo.org'
 LICENSE = 'GPLv3'
 
