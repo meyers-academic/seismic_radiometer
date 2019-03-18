@@ -11,3 +11,4 @@ geographiclib
 deepdish
 dynesty
 corner
+jupyter

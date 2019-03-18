@@ -1,0 +1,30 @@
+# randoms
+axes.labelsize: 22
+axes.titlesize: 24
+lines.linewidth: 3
+text.usetex: True
+font.family: serif
+# font.serif: Computer Modern Roman
+font.serif: Ubuntu
+figure.figsize: 8,6
+axes.grid: True
+axes.grid.axis: both
+axes.grid.which: major 
+grid.linestyle: :
+# lines.dotted_pattern : 4, 6
+grid.alpha: 0.8 
+grid.color: k
+# ticks
+xtick.labelsize: 18
+ytick.labelsize: 18
+xtick.direction: in
+ytick.direction: in
+xtick.major.size: 12
+ytick.major.size: 12
+xtick.minor.size: 6 
+ytick.minor.size: 6 
+xtick.major.width: 2
+xtick.minor.width: 1.5 
+ytick.major.width: 2
+ytick.minor.width: 1.5 
+
