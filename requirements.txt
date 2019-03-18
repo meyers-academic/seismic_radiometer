@@ -9,3 +9,5 @@ lscsoft-glue
 pykerberos
 geographiclib
 deepdish
+dynesty
+corner
