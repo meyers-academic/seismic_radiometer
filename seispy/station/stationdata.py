@@ -352,6 +352,97 @@ class SeismometerArray(OrderedDict):
         return data
 
     @classmethod
+    def _gen_lwave(cls, stations, amplitude, phi, theta, decay_param,
+                   frequency, duration, phase=0, Fs=100, c=3000):
+        """
+        simulate l-wave in a certain direction
+
+        Parameters
+        ----------
+        stations : `dict`
+            dictionary of station locations
+        amplitude : `float`
+            amplitude of input wave
+        phi : `float`
+            azimuth in radians
+        theta : `float`
+            polar angle from north pole in radians
+        decay parameter : `float`
+            l-wave decay parameter from eigenfunction
+        frequency : `float`
+            frequency of source
+        duration : `float`
+            duration of signal to simulate
+        Fs : `float`, optional, default=100 Hz
+            sample rate (int preferred)
+        c : `float`, optional, default=3000 m/s
+            speed of wave
+        phase : `float`, optional, default=0
+            phase delay of wave in radians
+
+        Returns
+        -------
+        data : `dict`
+            2-layer dict with first keys as stations,
+            second keys as channels for each station.
+            Each entry is the data for that channel
+            for that station for a simulated wave.
+        """
+        cphi = np.cos(phi)
+        sphi = np.sin(phi)
+        ctheta = np.cos(theta)
+        stheta = np.sin(theta)
+        src_dir = np.array([cphi * stheta, sphi * stheta, ctheta])
+        # Get relative amplitudes in E,N,Z directions
+        # based on polarizations. See internal method below.
+        # for love waves we only have horizontal polarization
+        # so use same code for getting s-wave coefficients
+        # but fix polarization to be for horizontal
+        dx, dy, dz = get_polarization_coeffs(phi, theta, 0)
+
+        # wave vector
+        k = 2 * np.pi * frequency / c
+
+        # get time delays
+        taus = np.array([-np.dot(src_dir, stations[key]) / c for key in
+                         stations.keys()])
+        tau_round = np.round(taus * Fs) / Fs
+        ts = min(-tau_round)
+        final_times = np.arange(0, duration, 1 / Fs)
+        times = np.arange(0, duration, 1 / Fs)
+        print(times.size)
+        # shift backward in time
+        times += ts
+        data = SeismometerArray()
+        for key in stations.keys():
+            data[key] = {}
+            station = stations[key]
+            delay = -np.dot(src_dir, station) / c
+            signal = np.zeros(times.size)
+            # apply decay parameter to amplitude
+            # for love waves
+            amplitude *= np.exp(-decay_param * k * station[2])
+            if frequency == 0:
+                signal = amplitude * np.random.randn(times.size)
+            else:
+                signal = amplitude * np.sin(2 * np.pi * frequency *
+                                            (times + delay) + phase)
+            # impose time delay
+            data[key]['HHE'] = Trace(dx * signal, sample_rate=Fs,
+                                     times=final_times,
+                                     unit=u.m, name=key)
+            data[key]['HHN'] = Trace(dy * signal, sample_rate=Fs,
+                                     times=final_times,
+                                     unit=u.m, name=key)
+            data[key]['HHZ'] = Trace(dz * signal, sample_rate=Fs,
+                                     times=final_times,
+                                     unit=u.m, name=key)
+            for key2 in data[key].keys():
+                data[key][key2].location = station
+        return data
+
+
+    @classmethod
     def _gen_swave(cls, stations, amplitude, phi, theta, psi, frequency,
                    duration, phase=0, Fs=100, c=3000):
         """
@@ -521,6 +612,40 @@ class SeismometerArray(OrderedDict):
             for key2 in data[key].keys():
                 data[key][key2].location = station
         return data
+
+    def add_l_wave(self, amplitude, phi, theta, decay_param, frequency,
+                   duration, phase=0, Fs=100, c=3000):
+        """
+        Add p-wave to seismometer array's data.
+        Updates seismometer array data in place.
+
+        Parameters
+        ----------
+        amplitude : `float`
+            amplitude of p wave
+        phi : `float`
+            phi for p-wave injection
+        theta : `float`
+            polar angle for p-wave injection
+        frequency : `float`
+            frequency of injected wave
+        duration : `float`
+            duration of injected wave
+        phase : `float`
+            phase of injected sine-wave
+        Fs : `float`, optional
+            sample rate of wave we're generating
+        c : `float`, optional
+            velocity of injected wave
+        """
+        locations = self.get_locations()
+        l_data = SeismometerArray._gen_lwave(locations, amplitude, phi, theta,
+                                             decay_param,
+                                             frequency, duration, 
+                                             phase=phase, Fs=Fs, c=c
+                                             )
+        self.add_another_seismometer_array(l_data)
+
 
     def add_p_wave(self, amplitude, phi, theta, frequency,
                    duration, phase=0, Fs=100, c=5700):
@@ -901,10 +1026,11 @@ class SeismometerArray(OrderedDict):
                     G = np.hstack((G, g))
         return G, shapes
 
-    def get_response_matrix_healpy(self, rec_type, station_locs, recovery_freq,
-                                   v, nside=8, autocorrelations=True,
+    def get_response_matrix_healpy(self, rec_type, station_locs, frequency=None,
+                                   velocity=None, nside=8, autocorrelations=True,
                                    rayleigh_paramfile=None, channels=None,
-                                   rayleigh_paramdict=None
+                                   rayleigh_paramdict=None,
+                                   decay_parameter=None
                                    ):
         """TODO: Docstring for get_gamma_matrices.
         Returns
@@ -925,7 +1051,7 @@ class SeismometerArray(OrderedDict):
                 thetas = []
                 # get gamma matrix
                 # convert freq to float
-                rf = float(recovery_freq)
+                rf = float(frequency)
                 # get diffraction limited spot size
                 # get nside for healpy based on npix (taken up to
                 # the next power of two)
@@ -943,13 +1069,14 @@ class SeismometerArray(OrderedDict):
                         response_picker(rec_type,
                                         set_channel_vector(channels[kk]),
                                         station_locs[station1],
-                                        origin_vec, v,
-                                        float(recovery_freq),
+                                        origin_vec, velocity=velocity,
+                                        frequency=float(frequency),
                                         thetas=thetas_temp,
                                         phis=phis_temp,
                                         healpy=True,
                                         rayleigh_paramdict=rayleigh_paramdict,
-                                        rayleigh_paramfile=rayleigh_paramfile)
+                                        rayleigh_paramfile=rayleigh_paramfile,
+                                        decay_parameter=decay_parameter)
                     # append new, flattened, g onto the end
                     # of already generated on
                     g = np.vstack((g1, g2))
@@ -963,13 +1090,14 @@ class SeismometerArray(OrderedDict):
                                         set_channel_vector(channels[kk]),
                                         station_locs[station1],
                                         origin_vec,
-                                        v,
-                                        float(recovery_freq),
+                                        velocity=velocity,
+                                        frequency=float(frequency),
                                         thetas=thetas_temp,
                                         phis=phis_temp,
                                         healpy=True,
                                         rayleigh_paramdict=rayleigh_paramdict,
-                                        rayleigh_paramfile=rayleigh_paramfile)
+                                        rayleigh_paramfile=rayleigh_paramfile,
+                                        decay_parameter=decay_parameter)
                     # append new, flattened, g onto the
                     # end of the one we've generated
                     g = g1
@@ -1067,7 +1195,8 @@ class SeismometerArray(OrderedDict):
                                 autocorrelations=True, rayleigh_paramfile=None,
                                 rayleigh_paramdict=None,
                                 channels=None,
-                                nside=8):
+                                nside=8,
+                                decay_parameter=None):
         """TODO: Docstring for get_gamma_matrices.
         Returns
         -------
@@ -1140,7 +1269,8 @@ class SeismometerArray(OrderedDict):
                                                thetas=thetas_temp,
                                                phis=phis_temp,
                                                rayleigh_paramfile=rayleigh_paramfile,
-                                               healpy=True)
+                                               healpy=True,
+                                               decay_parameter=decay_parameter)
                                 # append new, flattened, g onto the
                                 # end of the one we've generated
                                 g = g1

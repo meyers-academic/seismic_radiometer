@@ -4,6 +4,7 @@ from scipy.interpolate import interp1d
 from scipy.special import sph_harm
 from .utils import calc_travel_time2
 
+
 def orf_p(ch1_vec, ch2_vec, det1_loc, det2_loc, vp, ff=None, thetamesh=1,
           phimesh=1):
     """
@@ -331,6 +332,53 @@ def orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, vs, f,
     return gamma1, gamma2, phis, thetas
 
 
+def orf_l_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, v, f,
+                      thetas=None, phis=None, healpy=False,
+                      decay_parameter=None):
+    ch1_vec = ch1_vec / np.sqrt(np.dot(ch1_vec, ch1_vec))
+    ch2_vec = ch2_vec / np.sqrt(np.dot(ch2_vec, ch2_vec))
+    z1 = det1_loc[2]  # IS THIS CORRECT? (where is 'earth surface' z=0 defined)
+    z2 = det2_loc[2]  # IS THIS CORRECT?
+    k = 2 * np.pi * f / v
+
+    x_vec = np.array(det1_loc) - np.array(det2_loc)
+    # initialize angle arrays
+    if thetas is None:
+        thetas = np.arange(3, 180, 6) * np.pi / 180
+    if phis is None:
+        phis = np.arange(3, 360, 6) * np.pi / 180
+    # define angle meshes. different for healpy vs non-healpy
+    if healpy:
+        THETAS = thetas
+        PHIS = phis
+    else:
+        THETAS, PHIS = np.meshgrid(thetas, phis)
+    # much faster to vectorize things
+    # unit vector in direction of wave propagation
+    # NOTE: OmgZ should be 0 for surface wave, but we'll allow it for now
+    OmgX = np.sin(THETAS) * np.cos(PHIS)
+    OmgY = np.sin(THETAS) * np.sin(PHIS)
+    OmgZ = (np.cos(THETAS))
+    # get vector perp to Omega and the surface
+    # this is what we use for love waves (and Sh waves in another function)
+    PsiX = -np.sin(PHIS)
+    PsiY = np.cos(PHIS)
+    # force dot product to be zero, make psi a unit vector
+    PsiZ = np.zeros(PHIS.shape)
+
+    omg_shape = OmgX.shape
+    OMEGA = np.vstack((OmgX.flatten(), OmgY.flatten(), OmgZ.flatten())).T
+
+    dt = calc_travel_time2(x_vec, OMEGA, v).reshape(omg_shape)
+    sf1 = (PsiX * ch1_vec[0] + PsiY * ch1_vec[1] + PsiZ * ch1_vec[2]) * \
+        (PsiX * ch2_vec[0] + PsiY * ch2_vec[1] + PsiZ * ch2_vec[2])
+    # love waves should decay exponentially
+    # and apply phase to gamma
+    gamma = sf1 * np.exp(-decay_parameter * (k * z1 + k * z2)) * \
+        np.exp(2 * np.pi * 1j * f * dt)
+    return gamma, phis, thetas
+
+
 def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
                       thetas=None, phis=None, healpy=False,
                       rayleigh_paramfile=None,
@@ -375,8 +423,8 @@ def orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc, f,
         theta values
     """
     # normalize channel 1 and 2 vectors
-    ch1_vec = ch1_vec / np.sqrt(np.dot(ch1_vec,ch1_vec))
-    ch2_vec = ch2_vec / np.sqrt(np.dot(ch2_vec,ch2_vec))
+    ch1_vec = ch1_vec / np.sqrt(np.dot(ch1_vec, ch1_vec))
+    ch2_vec = ch2_vec / np.sqrt(np.dot(ch2_vec, ch2_vec))
 
     # read parameters for eigenfunction
     # assumes bi-exponential model
@@ -486,14 +534,16 @@ def orf_picker(string, ch1_vec, ch2_vec,
                det1_loc, det2_loc, v, f, thetas=None,
                phis=None, healpy=False,
                rayleigh_paramfile=None,
-               rayleigh_paramdict=None):
+               rayleigh_paramdict=None,
+               decay_parameter=None
+               ):
     if string is 'r':
         g1, p, t = orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
                                      f, thetas=thetas,
                                      phis=phis, healpy=healpy,
                                      rayleigh_paramfile=rayleigh_paramfile,
                                      rayleigh_paramdict=rayleigh_paramdict,
-                                     v=v
+                                     v=v,
                                      )
         return g1.reshape((g1.size, 1)), g1.shape
     if string is 's':
@@ -506,4 +556,9 @@ def orf_picker(string, ch1_vec, ch2_vec,
         g1, p, t = orf_p_directional2(ch1_vec, ch2_vec, det1_loc, det2_loc,
                                       v, f, thetas=thetas,
                                       phis=phis, healpy=healpy)
+        return g1.reshape((g1.size, 1)), g1.shape
+    if string is 'l':
+        g1, p, t = orf_l_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
+                                     v, f, decay_parameter=decay_parameter, thetas=thetas,
+                                     phis=phis, healpy=healpy)
         return g1.reshape((g1.size, 1)), g1.shape
