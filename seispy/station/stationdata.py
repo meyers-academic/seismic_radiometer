@@ -410,7 +410,6 @@ class SeismometerArray(OrderedDict):
         ts = min(-tau_round)
         final_times = np.arange(0, duration, 1 / Fs)
         times = np.arange(0, duration, 1 / Fs)
-        print(times.size)
         # shift backward in time
         times += ts
         data = SeismometerArray()
@@ -717,7 +716,7 @@ class SeismometerArray(OrderedDict):
     def add_r_wave(self, amplitude, phi, theta, frequency,
                    duration, rayleigh_paramfile=None,
                    rayleigh_paramdict=None,
-                   phase=0, Fs=100):
+                   phase=0, Fs=100, velocity=None):
         """
         Add rayleigh wave to seismometer array's data.
         Updates seismometer array data in place.
@@ -748,18 +747,20 @@ class SeismometerArray(OrderedDict):
         if rayleigh_paramfile is None and rayleigh_paramdict is None:
             print('WARNING: No Rayleigh paramfile specified for injection')
             print('\tusing default eigenfunction')
-            rwave_params = {'a1': 0.47,
-                            'a3': 0.73,
-                            'a2': 1.51,
-                            'a4': 0.25,
+            rwave_params = {'a1': 0.80,
+                            'a2': 0.66,
+                            'a3': 0.54,
+                            'a4': 0.73,
                             'v': 2504,
-                            'C2': -1.29,
-                            'C4': 2.29,
-                            'Nvh': -0.68}
+                            'C2': -0.83,
+                            'C4': -0.83,
+                            'Nvh': -0.78}
         elif rayleigh_paramfile is not None:
             rwave_params = np.load(rayleigh_paramfile)[0]
         else:
             rwave_params = rayleigh_paramdict
+        if velocity is not None:
+            rwave_params['v'] = velocity
 
         locations = self.get_locations()
         r_data = SeismometerArray._gen_rwave(locations, amplitude, phi,
@@ -849,69 +850,25 @@ class SeismometerArray(OrderedDict):
             self[sensor]['HHN'] += other[sensor]['HHN']
             self[sensor]['HHZ'] += other[sensor]['HHZ']
 
-    def get_coherences_bband(self, flow, fhigh, channels=None, fftlength=2,
-                             overlap=1, window='hann', nproc=8):
-        """TODO: Docstring for get_coherences.
-
-        Parameters
-        ----------
-        recovery_Freq : TODO
-
-        Returns
-        -------
-        TODO
-
-        """
+    def get_ffts(self, recovery_freq, channels=None):
         stations = self.keys()
         if channels is None:
             channels = ['HHE', 'HHN', 'HHZ']
-        Ys = []
-        ct = 0
+        Ndets = np.size(self.keys()) * np.size(channels)
+        Nchans = np.size(stations) * np.size(channels)
+        myffts = np.zeros(Nchans, dtype='complex')
+        counter = 0
         for ii, station1 in enumerate(stations):
-            for jj, station2 in enumerate(stations):
-                for kk, chan1 in enumerate(channels):
-                    for ll, chan2 in enumerate(channels):
-                        if jj < ii:
-                            # we don't double count stations
-                            continue
-                        if ii == jj and ll < kk:
-                            # don't double count channels
-                            continue
-                        else:
-                            # get csd spectrogram
-                            self[station1][channels[kk]].bandpass(flow, fhigh)
-                            self[station2][channels[ll]].bandpass(flow, fhigh)
-                            P12 = \
-                                self[station1][channels[kk]].csd_spectrogram(self[station2][channels[ll]],
-                                                                             stride=fftlength,
-                                                                             window=window,
-                                                                             overlap=overlap,
-                                                                             nproc=nproc)
-                            P11 = \
-                                self[station1][channels[kk]].csd_spectrogram(self[station1][channels[kk]],
-                                                                             stride=fftlength,
-                                                                             window=window,
-                                                                             overlap=overlap,
-                                                                             nproc=nproc)
-                            P22 = \
-                                self[station2][channels[ll]].csd_spectrogram(self[station2][channels[ll]],
-                                                                             stride=fftlength,
-                                                                             window=window,
-                                                                             overlap=overlap,
-                                                                             nproc=nproc)
+            for kk, chan1 in enumerate(channels):
+                myffts[counter] = \
+                    2 * np.sum(self[station1][channels[kk]].value *
+                               np.exp(-2 * np.pi * recovery_freq * 1j *
+                                      self[station1][channels[kk]].times.value)) /\
+                    self[station1][channels[kk]].value.size
+                counter += 1
+        return myffts
 
-                            P12 = P12.mean(0)
-                            P11 = P11.mean(0)
-                            P22 = P22.mean(0)
-                            Y_of_f = P12 / np.sqrt(P11 * P22)
-                            Ys.append(FrequencySeries(Y_of_f, x0=0,
-                                      dx=1. / fftlength))
-                            ct += 1
-        return Ys
-
-    def get_coherences(self, recovery_freq, channels=None,
-                       stride=4, fftlength=2,
-                       overlap=1, window='hann', nproc=8):
+    def get_coherences(self, recovery_freq, channels=None):
         """TODO: Docstring for get_coherences.
 
         Parameters
@@ -923,8 +880,6 @@ class SeismometerArray(OrderedDict):
         TODO
 
         """
-        if stride < fftlength:
-            stride = fftlength
         stations = self.keys()
         if channels is None:
             channels = ['HHE', 'HHN', 'HHZ']
@@ -946,7 +901,7 @@ class SeismometerArray(OrderedDict):
                             myfft1 = \
                                 np.sum(self[station1][channels[kk]].value *
                                        np.exp(-2 * np.pi * recovery_freq * 1j *
-                                              self[station2][channels[ll]].times.value)) /\
+                                              self[station1][channels[kk]].times.value)) /\
                                 self[station1][channels[kk]].value.size
                             myfft2 = \
                                 np.sum(self[station2][channels[ll]].value *
@@ -957,8 +912,8 @@ class SeismometerArray(OrderedDict):
                             counter += 1
         return Ys
 
-    def get_response_matrix(self, rec_type, station_locs, recovery_freq,
-                            v, nside=8, autocorrelations=True,
+    def get_response_matrix(self, rec_type, station_locs, frequency=None,
+                            velocity=None, nside=8,
                             paramfile=None, channels=None,
                             phis=None, thetas=None,
                             rayleigh_paramfile=None,
@@ -989,8 +944,8 @@ class SeismometerArray(OrderedDict):
                         response_picker(rec_type,
                                         set_channel_vector(channels[kk]),
                                         station_locs[station1],
-                                        origin_vec, v,
-                                        float(recovery_freq),
+                                        origin_vec, velocity,
+                                        float(frequency),
                                         thetas=thetas,
                                         phis=phis,
                                         healpy=True,
@@ -1007,8 +962,8 @@ class SeismometerArray(OrderedDict):
                                         set_channel_vector(channels[kk]),
                                         station_locs[station1],
                                         origin_vec,
-                                        v,
-                                        float(recovery_freq),
+                                        velocity,
+                                        float(frequency),
                                         thetas=thetas,
                                         phis=phis,
                                         healpy=True,
@@ -1027,7 +982,7 @@ class SeismometerArray(OrderedDict):
         return G, shapes
 
     def get_response_matrix_healpy(self, rec_type, station_locs, frequency=None,
-                                   velocity=None, nside=8, autocorrelations=True,
+                                   velocity=None, nside=8,
                                    rayleigh_paramfile=None, channels=None,
                                    rayleigh_paramdict=None,
                                    decay_parameter=None

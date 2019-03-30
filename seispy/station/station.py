@@ -29,10 +29,12 @@ class StationArray(OrderedDict):
         # if origin is none, get first element
         # of array and call that the origin
         if origin is None:
-            origin = self.keys()[0]
-            origin_x, origin_y, origin_z =\
-                self[origin][0], self[origin][1], self[origin][2]
-            origin_coords = [origin_x, origin_y, origin_z]
+            xs = np.zeros(np.size(self.keys()))
+            ys = np.zeros(np.size(self.keys()))
+            for ii, k in enumerate(self.keys()):
+                xs[ii] = self[k][0]
+                ys[ii] = self[k][1]
+            origin_coords = [np.mean(xs), np.mean(ys), 0]
         # otherwise, get the coordinates of the user specified origin
         else:
             try:
@@ -46,6 +48,8 @@ class StationArray(OrderedDict):
         for station in self.keys():
             for ii in range(3):
                 self[station][ii] = self[station][ii] - origin_coords[ii]
+        # set origin coordinates
+        self.origin_coords = origin_coords
 
     def plot(self):
         """

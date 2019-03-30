@@ -234,15 +234,16 @@ def response_r_directional(ch1_vec, det1_loc, det2_loc,
     OMEGA = np.vstack((OmgX.flatten(), OmgY.flatten(), OmgZ.flatten())).T
     if rayleigh_paramfile is None:
         # print 'WARNING: No Rayleigh paramfile specified, using default eigenfunction'
-        a1 = 0.47
-        a2 = 0.73
-        a3 = 1.51
-        a4 = 0.25
+        a1 = 0.80
+        a2 = 0.66
+        a3 = 0.54
+        a4 = 0.73
         if vr is None:
             vr = 2504
-        C2 = -1.29
-        C4 = 2.29
-        Nvh = -0.68
+        C2 = -0.83
+        C4 = -0.83
+        Nvh = -0.78
+
     else:
         data = np.load(rayleigh_paramfile)[0]
         # C1=data['C1']
