@@ -15,7 +15,7 @@ class TestMass:
         self.name=name
         self.position=position
         self.mass=mass
-        self.is_surface=(self.position[0]==0)
+        self.is_surface=(self.position[2]==0)
         self.freqs=freqs
         self.acceleration={}
         self.pols=['p','r','sh','sv']
@@ -103,8 +103,8 @@ class TestMass:
                                         np.cos(theta)])
 
         krho = k*np.array([1,1,0])   #horizontal wavenumber
-        krhomag = np.abs(krho)   #magnitude of the horizontal wavenumber
-        kmag = np.abs(k)        #magnitude of the total wavenumber
+        krhomag = np.linalg.norm(krho)   #magnitude of the horizontal wavenumber
+        kmag = np.linalg.norm(k)        #magnitude of the total wavenumber
 
 
         # THIS INFORMATION SHOULD BE STORED IN
@@ -128,7 +128,7 @@ class TestMass:
 
 
         del1 = (-2 * np.pi * G_SI * dens * 
-            np.exp(-krhomag * h) * 
+            np.exp(-np.dot(krhomag, h)) * 
             np.exp(1j*np.dot(krho,rho)))
         del2 = (AH1/(h1 + krhomag) + 
                 AH2/(h2 + krhomag) + 
@@ -140,6 +140,7 @@ class TestMass:
         az = -krhomag * delphi
         dela= np.array([ax, ay, az])
 
+
         return dela
 
     def get_acceleration_R_cavity(self,freq,theta,phi,a,seismic_field):
@@ -150,6 +151,7 @@ class TestMass:
         """
         rho = self.position*np.array([1,1,0]) #projection of the position on the horizontal plane
         h = -self.position[2] #depth of the point
+        x=self.position
 
         dens=seismic_field['density']
 
@@ -160,8 +162,8 @@ class TestMass:
                                         np.cos(theta)])
 
         krho = k*np.array([1,1,0])   #horizontal wavenumber
-        krhomag = np.abs(krho)   #magnitude of the horizontal wavenumber
-        kmag = np.abs(k)        #magnitude of the total wavenumber
+        krhomag = np.linalg.norm(krho)   #magnitude of the horizontal wavenumber
+        kmag = np.linalg.norm(k)        #magnitude of the total wavenumber
 
 
         # THIS INFORMATION SHOULD BE STORED IN
@@ -180,14 +182,14 @@ class TestMass:
                                   AH2/(-h2 + krhomag) - 
                                   AV1/(-v1 + krhomag) - 
                                   AV2/(-v2 + krhomag))
-        del3 = ( 2 * AH1 * krhomag * np.exp(-h1*h) / (h1^2 - krhomag^2) + 
-                 2 * AH2 * krhomag * np.exp(-h2*h) / (h2^2 - krhomag^2) + 
-                 2 * AV1 * v1 * np.exp(-v1*h) / (krhomag^2 - v1^2) + 
-                 2 * AV2 * v2 * np.exp(-v2*h) / (krhomag^2 - v2^2))
-        del4 = ( 2 * h1 * AH1 * krhomag * np.exp(-h1*h) / (h1^2 - krhomag^2) + 
-                 2 * h2 * AH2 * krhomag * np.exp(-h2*h) / (h2^2 - krhomag^2) + 
-                 2 * v1 * AV1 * v1 * np.exp(-v1*h) / (krhomag^2 - v1^2) + 
-                 2 * v2 * AV2 * v2 * np.exp(-v2*h) / (krhomag^2 - v2^2))
+        del3 = ( 2 * AH1 * krhomag * np.exp(-h1*h) / (h1**2 - krhomag**2) + 
+                 2 * AH2 * krhomag * np.exp(-h2*h) / (h2**2 - krhomag**2) + 
+                 2 * AV1 * v1 * np.exp(-v1*h) / (krhomag**2 - v1**2) + 
+                 2 * AV2 * v2 * np.exp(-v2*h) / (krhomag**2 - v2**2))
+        del4 = ( 2 * h1 * AH1 * krhomag * np.exp(-h1*h) / (h1**2 - krhomag**2) + 
+                 2 * h2 * AH2 * krhomag * np.exp(-h2*h) / (h2**2 - krhomag**2) + 
+                 2 * v1 * AV1 * v1 * np.exp(-v1*h) / (krhomag**2 - v1**2) + 
+                 2 * v2 * AV2 * v2 * np.exp(-v2*h) / (krhomag**2 - v2**2))
         ax = -1j * krho[0] * del1 * (del3 + del2)
         ay = -1j * krho[1] * del1 * (del3 + del2)
         az = -del1 * (del4 + krhomag * del2)
@@ -199,6 +201,7 @@ class TestMass:
         ay = del5 * 1j * (AH1 * np.exp(-h1*h) + AH2 * np.exp(-h2*h)) * k[1] / kmag
         az = del5 * (AV1 * np.exp(-v1*h) + AV2 * np.exp(-v2*h))
         dela = dela+np.array([ax,ay,az])
+
 
         return dela
 
@@ -289,13 +292,13 @@ class TestMass:
                                         np.sin(theta)*np.cos(phi),
                                         np.cos(theta)])
 
-        nhat=np.array(-k[2],k[1],0)# dispacement vector
+        nhat=np.array([-k[2],k[1],0])# dispacement vector
         nhat=nhat/np.linalg.norm(nhat)
 
         ax=-4/3 * np.pi * G_SI * dens * a * nhat[0] * np.exp(1j*np.dot(k,x))
         ay=-4/3 * np.pi * G_SI * dens * a * nhat[1] * np.exp(1j*np.dot(k,x))
         az=-4/3 * np.pi * G_SI * dens * a * nhat[2] * np.exp(1j*np.dot(k,x))
-        dela=dela+np.array([ax,ay,az])
+        dela=np.array([ax,ay,az])
 
         return dela
 
@@ -351,7 +354,7 @@ class TestMass:
 
         kmag = np.linalg.norm(k)        #magnitude of the total wavenumber
 
-        nhat=np.array(-k[2],k[1],0)# dispacement vector
+        nhat=np.array([-k[2],k[1],0])# dispacement vector
         nhat=nhat/np.linalg.norm(nhat)
 
         ax=-4/3 * np.pi * G_SI * dens * a * nhat[0] * np.exp(1j*np.dot(k,x))
