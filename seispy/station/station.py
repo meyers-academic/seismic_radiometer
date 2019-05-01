@@ -29,8 +29,8 @@ class StationArray(OrderedDict):
         # if origin is none, get first element
         # of array and call that the origin
         if origin is None:
-            xs = np.zeros(np.size(self.keys()))
-            ys = np.zeros(np.size(self.keys()))
+            xs = np.zeros(len(self.keys()))
+            ys = np.zeros(len(self.keys()))
             for ii, k in enumerate(self.keys()):
                 xs[ii] = self[k][0]
                 ys[ii] = self[k][1]

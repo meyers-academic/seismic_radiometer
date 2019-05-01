@@ -25,8 +25,6 @@ import glob
 import os.path
 from setuptools import (find_packages, setup)
 from setuptools.command.install import install
-from distutils.core import Extension
-from distutils.command.build import build
 import sys
 import numpy
 
@@ -63,5 +61,4 @@ setup(name=PACKAGENAME,
       long_description=LONG_DESCRIPTION,
       zip_safe=False,
       test_suite='seispy.tests',
-      use_2to3=True
       )

@@ -5,9 +5,12 @@ import astropy.units as u
 from ..noise import gaussian
 from ..trace import Trace, fetch
 import numpy as np
+from scipy.linalg import pinv
 from gwpy.frequencyseries import FrequencySeries
 from .station import StationArray, homestake
 import healpy as hp
+from .coherent_field import CoherentSeismicField
+from seispy import default_rwave_parameters
 
 
 class Seismometer(OrderedDict):
@@ -640,11 +643,10 @@ class SeismometerArray(OrderedDict):
         locations = self.get_locations()
         l_data = SeismometerArray._gen_lwave(locations, amplitude, phi, theta,
                                              decay_param,
-                                             frequency, duration, 
+                                             frequency, duration,
                                              phase=phase, Fs=Fs, c=c
                                              )
         self.add_another_seismometer_array(l_data)
-
 
     def add_p_wave(self, amplitude, phi, theta, frequency,
                    duration, phase=0, Fs=100, c=5700):
@@ -854,8 +856,7 @@ class SeismometerArray(OrderedDict):
         stations = self.keys()
         if channels is None:
             channels = ['HHE', 'HHN', 'HHZ']
-        Ndets = np.size(self.keys()) * np.size(channels)
-        Nchans = np.size(stations) * np.size(channels)
+        Nchans = len(stations) * np.size(channels)
         myffts = np.zeros(Nchans, dtype='complex')
         counter = 0
         for ii, station1 in enumerate(stations):
@@ -865,6 +866,7 @@ class SeismometerArray(OrderedDict):
                                np.exp(-2 * np.pi * recovery_freq * 1j *
                                       self[station1][channels[kk]].times.value)) /\
                     self[station1][channels[kk]].value.size
+
                 counter += 1
         return myffts
 
@@ -1230,6 +1232,67 @@ class SeismometerArray(OrderedDict):
                                 # end of the one we've generated
                                 g = g1
                                 shapes = [g_s]
-                            G[:,ct] = g.squeeze()
+                            G[:, ct] = g.squeeze()
                             ct += 1
         return G, shapes
+
+    def coherent_recovery(self, rec_str, velocity_list=None, stations=None,
+                          inv_condition=1e-3, frequency=None,
+                          nside=8, return_mode=0, rayleigh_paramdict=None):
+        if rayleigh_paramdict is None:
+            rayleigh_paramdict = default_rwave_parameters
+        csf = CoherentSeismicField(frequency)
+        for ii in range(len(rec_str)):
+            if ii == 0:
+                R = self.get_response_matrix_healpy(rec_str[ii], stations,
+                                                    frequency, velocity_list[ii],
+                                                    nside=nside,
+                                                    rayleigh_paramdict=rayleigh_paramdict)[0]
+            else:
+                R.vstack(self.get_response_matrix_healpy(rec_str[ii], stations,
+                                                         freqequency,
+                                                         velocity_list[ii],
+                                                         nside=nside)[0])
+        R = R.T
+        myffts = self.get_ffts(frequency)
+        Fisher = np.dot(R.T.conj(), R)
+        InvFisher = pinv(Fisher, cond=inv_condition)
+        recovery = np.dot(InvFisher, np.dot(R.T.conj(), myffts))
+        npix = hp.nside2npix(nside)
+        idx_start = 0
+        for ii, rstr in enumerate(rec_str):
+            if rstr == 's':
+                csf.maps[frequency]['sh'] = recovery[idx_start:idx_start + npix]
+                idx_start += npix
+                csf.maps[frequency]['sv'] = recovery[idx_start:idx_start + npix]
+                idx_start += npix
+            else:
+                csf.maps[frequency][rstr] = recovery[idx_start:idx_start + npix]
+                idx_start += npix
+            if rstr == 'r':
+                csf.seismic[freq]['eigenfunction'] = get_eigenfunction(rayleigh_paramdict,
+                                                                       frequency,
+                                                                       velocity_list[ii])
+            csf.seismic[frequency]['v' + rstr] = velocity_list[ii]
+            csf.seismic['density'] = 2.5e3  # Don't hardcode this
+            thetas, phis = hp.pix2ang(nside, range(npix))
+            csf.maps['thetas'] = thetas
+            csf.maps['phis'] = phis
+        if return_mode == 0:
+            return csf
+        elif return_mode == 1:
+            return csf, Fisher, InvFisher
+
+
+def get_eigenfunction(drp, freq, vr):
+    import numpy as np
+    V1 = 1j * (1 - drp['c2'])
+    V2 = 1j * drp['c2']
+    H1 = drp['Nv'] - drp['c4']
+    H2 = drp['c4']
+    krhomag = 2 * np.pi * freq / vr
+    v1 = krhomag * drp['a1']
+    v2 = krhomag * drp['a2']
+    h1 = krhomag * drp['a3']
+    h2 = krhomag * drp['a4']
+    return [H1, H2, V1, V2, h1, h2, v1, v2]
