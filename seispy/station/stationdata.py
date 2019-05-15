@@ -1249,10 +1249,10 @@ class SeismometerArray(OrderedDict):
                                                     nside=nside,
                                                     rayleigh_paramdict=rayleigh_paramdict)[0]
             else:
-                R.vstack(self.get_response_matrix_healpy(rec_str[ii], stations,
-                                                         freqequency,
+                R = np.vstack((R, self.get_response_matrix_healpy(rec_str[ii], stations,
+                                                         frequency,
                                                          velocity_list[ii],
-                                                         nside=nside)[0])
+                                                         nside=nside)[0]))
         R = R.T
         myffts = self.get_ffts(frequency)
         Fisher = np.dot(R.T.conj(), R)
