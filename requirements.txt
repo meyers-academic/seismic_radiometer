@@ -12,3 +12,4 @@ deepdish
 dynesty
 corner
 jupyter
+healpy
