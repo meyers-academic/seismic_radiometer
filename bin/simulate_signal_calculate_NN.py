@@ -1,6 +1,7 @@
 #! /usr/bin/python
 import seispy.utils.responses as rsps
 import numpy as np
+import os
 import healpy as hp
 import matplotlib.pyplot as plt
 from seispy import plot as hplot
@@ -52,6 +53,9 @@ def parse_command_line():
     parser.add_option("--save-tag",
                       help="prefix for plots", default='results',
                       dest="save_tag", type=str)
+    parser.add_option("--output-nn-file",
+                      help="output-nn-file", default=None,
+                      dest="output_nn_file", type=str)
 
     params, args = parser.parse_args()
     return params
@@ -146,9 +150,9 @@ def run(params):
             data.add_r_wave(float(config[key]['amplitude']),
                             np.radians(float(config[key]['phi'])),
                             np.radians(float(config[key]['theta'])),
-                            float(config[key]['frequency']),
-                            float(config[key]['duration']),
-                            c=float(config[key]['velocity']),
+                            float(config['array']['frequency']),
+                            float(config['array']['duration']),
+                            velocity=float(config[key]['velocity']),
                             )
         # add l-wave injections
         if config[key]['type'] == 'l':
@@ -161,6 +165,7 @@ def run(params):
                             float(config[key]['duration']),
                             c=float(config[key]['velocity']),
                             )
+
     csf = data.coherent_recovery(params.recovery_string,
                                  recovery_velocities,
                                  stations,
@@ -237,12 +242,12 @@ def run(params):
     x_ETMY = np.array([0, L, 0])
 
     ITMX = TestMass('ITMX', x_ITMX, m, freqs)
-    ITMY = TestMass('ITMY Underground', x_ITMY, m, freqs)
+    ITMY = TestMass('ITMY', x_ITMY, m, freqs)
     ETMX = TestMass('ETMX', x_ETMX, m, freqs)
     ETMY = TestMass('ETMY', x_ETMY, m, freqs)
 
-    # masses=[ITMX,ITMY,ETMX,ETMY]
-    masses = [ITMX, ITMY]
+    masses=[ITMX,ITMY,ETMX,ETMY]
+    # masses = [ITMX, ITMY]
 
     for mass in masses:
         print(mass.name)
@@ -285,7 +290,14 @@ def run(params):
                                                                     float(config[key]['reflection_velocity']))
             csf.maps[freq]['p'][hp.ang2pix(int(params.nside), np.pi - theta, phi)] += PP*float(config[key]['amplitude'])
             csf.maps[freq]['sv'][hp.ang2pix(int(params.nside), np.pi/2 + reflected_angle, phi)] += PS*float(config[key]['amplitude'])
-    
+
+    p_arg = np.argmax(np.abs(csf.maps[freq]['p']))
+    sh_arg = np.argmax(np.abs(csf.maps[freq]['sh']))
+    sv_arg = np.argmax(np.abs(csf.maps[freq]['sv']))
+    print(csf.maps[freq]['p'][p_arg], p_arg)
+    print(csf.maps[freq]['sv'][sv_arg], sv_arg)
+    print(csf.maps[freq]['sh'][sh_arg], sh_arg)
+
     recstrs = []
     for rec in params.recovery_string:
         if rec=='s':
@@ -314,7 +326,6 @@ def run(params):
         ax.tick_params(labelsize=16)
         plt.savefig(params.save_tag+'-'+rec+'-injected-amplitude.png')
 
-
     for mass in masses:
         print(mass.name)
         mass.get_acceleration_budget(csf)
@@ -322,16 +333,32 @@ def run(params):
             a = mass.acceleration[freq]
             print('\t%2.2f Hz\n\t\tAx~ =%2.4e+i%2.4e m/s\n\t\tAy~ =%2.4e+i%2.4e m/s\n\t\tAz~ =%2.4e+i%2.4e m/s' % (freq, np.real(a[0]), np.imag(a[0]), np.real(a[1]), np.imag(a[1]), np.real(a[2]), np.imag(a[2])))
     newtonian_noise_sq = np.zeros(freqs.shape)
-    newtonian_noise = np.zeros(freqs.shape)
+    newtonian_noise_inj = np.zeros(freqs.shape)
 
     for ii, freq in enumerate(freqs):
         for mass in masses:
             a = mass.acceleration[freq]
             newtonian_noise_sq[ii] += np.abs(a[0] / L / (2 * np.pi * freq)**2)**2
-        newtonian_noise[ii] = np.sqrt(newtonian_noise_sq[ii])
+        newtonian_noise_inj[ii] = np.sqrt(newtonian_noise_sq[ii])
 
         print('%2.2f Hz\n\tNewtonian noise=%2.4e / sqrt(Hz)' %
-              (freq, newtonian_noise[ii]))
+              (freq, newtonian_noise_inj[ii]))
+
+    if params.output_nn_file is not None:
+        for i, freq in enumerate(freqs):
+            newname = params.output_nn_file.split('.')[0] + str(freq).replace('.', '_') + 'Hz' + '.txt'
+            # if file exists, append to it
+            if os.path.isfile(newname):
+                with open(newname, 'a') as myf:
+                    myf.write('%e, %e\n' % (newtonian_noise[ii],
+                                            newtonian_noise_inj[ii]))
+            # otherwise create it and add a header
+            else:
+                with open(newname, 'w+') as myf:
+                    myf.write('#freq = %4.6f\n' % freq)
+                    myf.write('#recovered nn, injected nn\n')
+                    myf.write('%e, %e\n' % (newtonian_noise[ii],
+                                            newtonian_noise_inj[ii]))
 
 
 

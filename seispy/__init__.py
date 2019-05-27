@@ -6,6 +6,7 @@ default_rwave_parameters = dict(c2=-0.76, c4=-0.69,
                                 a4=0.49,
                                 alpha=-0.25)
 
+
 def default_eigenfunction(drp, freq, vr):
     import numpy as np
     V1 = 1j * (1 - drp['c2'])
