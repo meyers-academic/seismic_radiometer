@@ -1,6 +1,6 @@
 import numpy as np
-from TestMass import TestMass
-from CoherentSeismicField import CoherentSeismicField
+from seispy.test_mass import TestMass
+from seispy.station.coherent_field import CoherentSeismicField
 
 G_SI=6.673e-11
 km_SI=1000
