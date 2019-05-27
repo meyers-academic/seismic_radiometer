@@ -25,14 +25,25 @@ certain matplotlib plotting libraries (one of which, if I recall, requires insta
 ```bash
 # create env
 conda create --name myenv
+# activate env
+conda activate myenv
 # install pip because
 # not everything is conda installable
 conda install pip
-# activate env
-conda activate myenv
 # install requirements
 pip install -r requirements.txt
 # install seispy
 pip install -e .
 ```
 
+## Running jupyter notebooks
+
+There are quite a few example Jupyter notebooks. You can run these through your browser by running (from this directory):
+
+```bash
+conda activate myenv
+cd notebooks/
+jupyter notebook
+```
+
+It should then bring up a browser window with a file tree with all of the available notebooks.
