@@ -11,7 +11,7 @@ feet = 0.3048 # meters
 # 1117324816-1117332016
 # 
 
-matlab_results_dir='../../../matlab/anisotropic_NN/results/mats/'
+matlab_results_dir='../../junk/'
 filenames=['TIME_1117324816_DEPTH_0_REG_2_NN_budget.mat',
            'TIME_1117324816_DEPTH_800_REG_2_NN_budget.mat',
            'TIME_1117324816_DEPTH_4850_REG_2_NN_budget.mat']
@@ -25,10 +25,10 @@ depth_color_dict={0:'red',800*feet:'blue',4850*feet:'green'}
 freqs=np.arange(0.5,5.1,0.5)
 csf=CoherentSeismicField(freqs)
 
-seismicfile='../data/Rwave_params_20180423'
+seismicfile='../../junk/newtonian_noise/code/anisotropic_NN/input/Rwave_params_20180423'
 csf.readSeismicDataFromFile(seismicfile)
 
-map_top_dir='../data/radiometer_maps/1117324816/'
+map_top_dir='../../junk/newtonian_noise/code/anisotropic_NN/data/for_pat_20190407/data/radiometer_maps/1117324816/'
 map_data_dirs=['0_5_Hz/','1_0_Hz/','1_5_Hz/','2_0_Hz/','2_5_Hz/',
                '3_0_Hz/','3_5_Hz/','4_0_Hz/','4_5_Hz/','5_0_Hz/']
 mapdirs=[map_top_dir+x for x in map_data_dirs]
@@ -36,7 +36,7 @@ mapfile='MAPS-1117324816-1117332016.mat'
 #csf.readMapFromFile_Incoherent_RemoveNegativePixels(mapdirs,mapfile)
 csf.readMapsFromFileList(mapdirs,mapfile,reg_method='Incoherent_LargestPixel_Plus_Iso')
 
-asd_top_dir='./data/asds/1117324816/'
+asd_top_dir='../../junk/newtonian_noise/code/anisotropic_NN/data/for_pat_20190407/data/asds/1117324816/'
 asd_data_dirs=['0_5_Hz/','1_0_Hz/','1_5_Hz/','2_0_Hz/','2_5_Hz/',
                '3_0_Hz/','3_5_Hz/','4_0_Hz/','4_5_Hz/','5_0_Hz/']
 asd_dirs=[asd_top_dir+x for x in asd_data_dirs]
@@ -48,7 +48,7 @@ m=40 #kg
 depths = feet*np.array([0,800,4850])
 
 newtonian_noise={}
-freqDet,ALIGO,ETD,CE,CEWB,CEPESS=np.loadtxt('data/CE_ASD_P1600143-v18.dat',unpack=True)
+freqDet,ALIGO,ETD,CE,CEWB,CEPESS=np.loadtxt('../../junk/newtonian_noise/code/anisotropic_NN/data/for_pat_20190407/data/CE_ASD_P1600143-v18.dat',unpack=True)
 
 masses=[TestMass('ITMX',np.array([0,0,-depth]),m,freqs,is_coherent=False) for depth in depths]
 newtonian_noise={depth:0 for depth in depths}
@@ -100,7 +100,7 @@ for depth,matfile in zip(depths,matlab_results_files):
     f_mat=tmp['freqs'][0]
     h_NN=tmp['h_NN'][0]
     plt.loglog(f_mat,h_NN,':',label='MATLAB Total',color=color)
-freqDet,ALIGO,ETD,CE,CEWB,CEPESS=np.loadtxt('data/CE_ASD_P1600143-v18.dat',unpack=True)
+freqDet,ALIGO,ETD,CE,CEWB,CEPESS=np.loadtxt('../../junk/newtonian_noise/code/anisotropic_NN/data/for_pat_20190407/data/CE_ASD_P1600143-v18.dat',unpack=True)
 plt.loglog(freqDet,ETD,label='ETD')
 plt.loglog(freqDet,CE,label='CE')
 plt.xlim([0.5,10])

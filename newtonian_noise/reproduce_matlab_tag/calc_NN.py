@@ -8,10 +8,10 @@ km_SI=1000
 freqs=np.array([0.1,1])
 csf=CoherentSeismicField(freqs)
 
-seismicfile='../matlab/anisotropic_NN/input/Rwave_params_20180423'
+seismicfile = '../../matlab/anisotropic_NN/input/Rwave_params_20180423'
 csf.readSeismicDataFromFile(seismicfile)
 
-mapdir='../HomestakeNewtonianNoiseEstimates/data_files/current_misc/'
+mapdir='../../HomestakeNewtonianNoiseEstimates/data_files/section_2/'
 mapfile='coherent_map_p_s_reflected_waves_included.mat'
 csf.readMapFromFile(mapdir,mapfile)
 
