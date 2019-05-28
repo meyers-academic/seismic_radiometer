@@ -27,7 +27,7 @@ class TestMass:
             self.acceleration_budget[freq] = {}
             for pol in self.pols:
                 self.acceleration_budget[freq][pol] = np.array([0, 0, 0])
-        self.is_surface = (self.position[0] == 0)
+        self.is_coherent = is_coherent
 
     def get_acceleration(self):
         """
@@ -35,8 +35,12 @@ class TestMass:
         """
         for freq in self.freqs:
             for pol in self.pols:
-                self.acceleration[freq] = (self.acceleration[freq] +
-                                           self.acceleration_budget[freq][pol])
+                if self.is_coherent:
+                    self.acceleration[freq] = ( self.acceleration[freq]+
+                                             self.acceleration_budget[freq][pol] )
+                else:
+                    self.acceleration[freq] = np.sqrt( np.abs(self.acceleration[freq])**2 +
+                                          np.abs(self.acceleration_budget[freq][pol])**2 )
 
     def get_acceleration_budget(self, seismic_field):
         """
@@ -51,10 +55,18 @@ class TestMass:
                 if skymap is None:
                     continue
                 for theta, phi, a in zip(thetas, phis, skymap):
-                    self.acceleration_budget[freq][pol] = (self.acceleration_budget[freq][pol] +
-                                                           self.get_acceleration_component(freq, theta, phi, pol, a, seismic_field))
-                self.acceleration[freq] = (self.acceleration[freq] +
-                                           self.acceleration_budget[freq][pol])
+                    if self.is_coherent:
+                        self.acceleration_budget[freq][pol] = (self.acceleration_budget[freq][pol] +
+                                    self.get_acceleration_component(freq, theta, phi,pol,a, seismic_field) )
+                    else:
+                        self.acceleration_budget[freq][pol]=np.sqrt(np.abs(self.acceleration_budget[freq][pol])**2 +
+                                    np.abs(self.get_acceleration_component(freq,theta,phi,pol,a,seismic_field))**2)
+                if self.is_coherent:
+                    self.acceleration[freq] = ( self.acceleration[freq]+
+                                          self.acceleration_budget[freq][pol] )
+                else:
+                    self.acceleration[freq] = np.sqrt(np.abs(self.acceleration[freq])**2+
+                                            np.abs(self.acceleration_budget[freq][pol])**2 )
 
     def get_acceleration_component(self, freq, theta, phi, pol, a, seismic_field):
         """
@@ -117,19 +129,10 @@ class TestMass:
         AH2 = H2 * a
         AV1 = V1 * a
         AV2 = V2 * a
-        #AH1 = A(1)
-        #AH2 = A(2)
-        #AV1 = A(3)
-        #AV2 = A(4)
-        #h1 = A(5)
-        #h2 = A(6)
-        #v1 = A(7)
-        #v2 = A(8)
-        #speed = A(9)
         omega = speed * kmag
 
         del1 = (-2 * np.pi * G_SI * dens *
-                np.exp(-np.dot(krhomag, h)) *
+                np.exp(-krhomag * h) *
                 np.exp(1j * np.dot(krho, rho)))
         del2 = (AH1 / (h1 + krhomag) +
                 AH2 / (h2 + krhomag) +
@@ -138,7 +141,7 @@ class TestMass:
         delphi = del1 * del2
         ax = -1j * krho[0] * delphi
         ay = -1j * krho[1] * delphi
-        az = -krhomag * delphi
+        az = -krhomag * delphi   # + krhomag??? -- h=-z, dphi/dz = - dphi/dh = -(-krhomag phi)
         dela = np.array([ax, ay, az])
 
         return dela
@@ -332,7 +335,7 @@ class TestMass:
         krhomag = np.linalg.norm(krho)
         h = -self.position[2]  # depth of the point
 
-        delphi = (2 * np.pi * G_SI * dens * a * 1 / (1j * kmag) * np.exp(-krhomag * h) *
+        delphi = (2 * np.pi * G_SI * dens * a * 1 / (kmag) * np.exp(-krhomag * h) *
                   np.exp(np.dot(1j * krho, self.position)))
         ax = -1j * krho[0] * delphi
         ay = -1j * krho[1] * delphi
@@ -359,8 +362,8 @@ class TestMass:
 
         speed = seismic_field[freq]['vs']
         wavelength = speed / freq
-        k = 2 * np.pi / wavelength * np.array([np.sin(theta) * np.sin(phi),
-                                               np.sin(theta) * np.cos(phi),
+        k = 2 * np.pi / wavelength * np.array([np.sin(theta) * np.cos(phi),
+                                               np.sin(theta) * np.sin(phi),
                                                np.cos(theta)])
         # krho = k * np.array([1, 1, 0])  #horizontal wavenumber
         # krhomag = np.linalg.norm(krho)  #magnitude of the horizontal wavenumber

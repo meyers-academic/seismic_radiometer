@@ -99,98 +99,20 @@ class CoherentSeismicField:
             self.seismic[freq]['eigenfunction'] = [
                 H1, H2, V1, V2, h1, h2, v1, v2]
 
-            #self.seismic[freq]['eigenfunction']['V1'] = 1j*(1-c2)
-            #self.seismic[freq]['eigenfunction']['V2'] = 1j*c2
-            #self.seismic[freq]['eigenfunction']['H1'] = Norm-c4
-            #self.seismic[freq]['eigenfunction']['H2'] = c4
-
-            #krhomag = 2*np.pi*freq/self.seismic[freq]['vr']
-            #self.seismic[freq]['v1'] = krhomag*a1
-            #self.seismic[freq]['v2'] = krhomag*a2
-            #self.seismic[freq]['v3'] = krhomag*a3
-            #self.seismic[freq]['v4'] = krhomag*a4
-
-    def readMapFromFile_Incoherent_RemoveNegativePixels(self, mapdirs, mapfile):
-        """
-        Read map from file
-        """
-
-        for mapdir, freq in zip(mapdirs, self.freqs):
+    def readMapsFromFileList(self,mapdirs,mapfile,reg_method='coherent'):
+        for mapdir,freq in zip(mapdirs,self.freqs):
             # File name
-            self.mapfile = mapdir + mapfile
-            # Try to read the file
-            try:
-                tmp = loadmat(self.mapfile)
-            except:
-                raise Exception(
-                    'CoherentSeismicField: NO SUCH FILE: %s' % mapfile)
+            mapfilename=mapdir+mapfile
+            self.readMapFromFile(mapfilename,reg_method,freq)
 
-            # Extract angles
-            self.maps['thetas'] = tmp['thetas'][0]
-            self.maps['phis'] = tmp['phis'][0]
 
-            # Extract P-waves
-            try:
-                psd_map = tmp['maps']['p'][0][0][0]
-                cut = psd_map < 0
-                psd_map[cut] = 0
-                self.maps[freq]['p'] = np.sqrt(psd_map)
-                power = np.sum(np.abs(self.maps[freq]['p'])**2)
-                #print('P-wave power: %e'%power)
-            except:
-                print('CoherentSeismicField Warning: NO P waves')
-                self.maps[freq]['p'] = None
-
-            # Extract SH-waves
-            try:
-                psd_map = tmp['maps']['sh'][0][0][0]
-                cut = psd_map < 0
-                psd_map[cut] = 0
-                self.maps[freq]['sh'] = np.sqrt(psd_map)
-                power = np.sum(np.abs(self.maps[freq]['sh'])**2)
-                #print('SH-wave power: %e'%power)
-            except:
-                print('CoherentSeismicField Warning: NO SH waves')
-                self.maps[freq]['sh'] = None
-
-            # Extract SV-waves
-            try:
-                psd_map = tmp['maps']['sv'][0][0][0]
-                cut = psd_map < 0
-                psd_map[cut] = 0
-                self.maps[freq]['sv'] = np.sqrt(psd_map)
-                power = np.sum(np.abs(self.maps[freq]['sv'])**2)
-                #print('SV-wave power: %e'%power)
-            except:
-                print('CoherentSeismicField Warning: NO SV waves')
-                self.maps[freq]['sv'] = None
-
-            # Extract R-waves
-            # ??? -- ONLY KEEP SURFACE?
-            try:
-                psd_map = tmp['maps']['r'][0][0][0]
-                cut = psd_map < 0
-                psd_map[cut] = 0
-                self.maps[freq]['r'] = np.sqrt(psd_map)
-                power = np.sum(np.abs(self.maps[freq]['r'])**2)
-
-                cut = self.maps['thetas'] != np.pi / 2
-                self.maps[freq]['r'][cut] = 0
-                power2 = np.sum(np.abs(self.maps[freq]['r'])**2)
-                norm = power / power2
-                self.maps[freq]['r'] *= norm
-                #print('R-wave power: %e'%power)
-            except:
-                print('CoherentSeismicField Warning: NO R waves')
-                self.maps[freq]['r'] = None
-
-    def readMapFromFile(self, mapdir, mapfile):
+    def readMapFromFile(self, mapfile, reg_method, freq):
         """
         Read map from file
         """
 
         # File name
-        self.mapfile = mapdir + mapfile
+        self.mapfile = mapfile
 
         # Try to read the file
         try:
@@ -202,53 +124,78 @@ class CoherentSeismicField:
         self.maps['thetas'] = tmp['thetas'][0]
         self.maps['phis'] = tmp['phis'][0]
 
-        for freq in self.freqs:
-            # Extract P-waves
+        for pol in self.polarizations:
             try:
-                self.maps[freq]['p'] = tmp['maps']['p'][0][0][0]
-                power = np.sum(np.abs(self.maps[freq]['p'])**2)
-                #print('P-wave power: %e'%power)
+                seismic_map = tmp['maps'][pol][0][0][0]
+                regmap = self.regulateMap(seismic_map, pol, reg_method)
+                self.maps[freq][pol] = regmap
             except:
-                print('CoherentSeismicField Warning: NO P waves')
-                self.maps[freq]['p'] = None
+                print('CoherentSeismicField Warning: NO %s waves' % pol)
+                self.maps[freq][pol] = None
 
-            # Extract SH-waves
-            try:
-                self.maps[freq]['sh'] = tmp['maps']['sh'][0][0][0]
-                power = np.sum(np.abs(self.maps[freq]['sh'])**2)
-                #print('SH-wave power: %e'%power)
-            except:
-                print('CoherentSeismicField Warning: NO SH waves')
-                self.maps[freq]['sh'] = None
+    def regulateMap(self, seismic_map, pol, method):
+        """
+        Given a seismic map, polarization, and a method,
+        do any "cleaning" to raw map that is needed
+        Note that incoherent maps are PSDs,
+        and coherent maps give amplitudes,
+        so we have to be careful about normalization
 
-            # Extract SV-waves
-            try:
-                self.maps[freq]['sv'] = tmp['maps']['sv'][0][0][0]
-                power = np.sum(np.abs(self.maps[freq]['sv'])**2)
-                #print('SV-wave power: %e'%power)
-            except:
-                print('CoherentSeismicField Warning: NO SV waves')
-                self.maps[freq]['sv'] = None
+        Parameters:
+        ----------
+        seismic_map: `numpy.ndarray`
+            map from radiometer
+        pol: `str`
+            polarization of map (surface waves are treated differently)
+        method: `str`
+            if this is an incoherent map, how do we deal with negative pixels
+        """
+        def compute_power(seismic_map, is_coherent):
+            if is_coherent:
+                return np.sum(seismic_map)
+            else:
+                return np.sqrt(np.sum(seismic_map)**2)
 
-            # Extract R-waves
-            # ??? -- ONLY KEEP SURFACE?
-            try:
-                self.maps[freq]['r'] = tmp['maps']['r'][0][0][0]
-                power = np.sum(np.abs(self.maps[freq]['r'])**2)
+        is_coherent = (method == 'coherent')
 
-                cut = self.maps['thetas'] != np.pi / 2
-                self.maps[freq]['r'][cut] = 0
+        # if pol=='r':
+        #     power1=compute_power(seismic_map,is_coherent)
+        #     cut=self.maps['thetas']!=np.pi/2
+        #     seismic_map[cut]=0
+        #     power2=compute_power(seismic_map,is_coherent)
+        #     norm=power1/power2
+        #     seismic_map*=norm
 
-                power2 = np.sum(np.abs(self.maps[freq]['r'])**2)
+        if method == 'coherent':
+            pass
 
-                norm = power / power2
+        elif method == 'Incoherent_LargestPixel':
+            cut = seismic_map < max(seismic_map)
+            seismic_map[cut] = 0
+            seismic_map = np.sqrt(seismic_map)
 
-                self.maps[freq]['r'][cut] *= norm
+        elif method == 'Incoherent_RemoveNegativePixels':
+            cut = seismic_map < 0
+            seismic_map[cut] = 0
+            seismic_map = np.sqrt(seismic_map)
 
-                #print('R-wave power: %e'%power)
-            except:
-                print('CoherentSeismicField Warning: NO R waves')
-                self.maps[freq]['r'] = None
+        elif method == 'Incoherent_LargestPixel_Plus_Iso':
+            midx = np.argmax(seismic_map)
+            pmax = seismic_map[midx]
+            # cut=seismic_map<0 # Matlab code does not remove negative pixels here
+            # seismic_map[cut]=0
+            pbcknd = compute_power(seismic_map, is_coherent) - pmax
+            # if pol=='r':
+            #    Npixels=np.sum(self.maps['thetas']!=np.pi/2)
+            # else:
+            #    Npixels=len(seismic_map)
+            Npixels = len(seismic_map)
+            seismic_map = np.ones(seismic_map.shape)*pbcknd/Npixels
+            seismic_map[midx] += pmax
+            # lets complex square roots be taken appropriately
+            seismic_map = seismic_map + 0 * 1j
+            seismic_map = np.sqrt(seismic_map)
+        return seismic_map
 
     def renormalizeMaps(self, asddirs, asdfilename):
         if len(asddirs) != len(self.freqs):
@@ -265,6 +212,15 @@ class CoherentSeismicField:
         total_station_power = tmp['total_station_power']
         self.asd[freq] = np.sqrt(np.max(total_station_power))
 
+    def normalize_surface_waves(self):
+        # apply equator cut to r waves
+        eq_cut = (self.maps['thetas'] != np.pi/2)
+        for freq in self.freqs:
+            rpower = np.sum(self.maps[freq]['r']**2)
+            self.maps[freq]['r'][eq_cut] = 0
+            self.maps[freq]['r'] = self.maps[freq]['r'] * \
+                np.sqrt(rpower / np.sum(self.maps[freq]['r']**2))
+
     def normalize_power(self):
         """
         Normalize the different polarizations, to a PSD at a given frequency
@@ -279,7 +235,8 @@ class CoherentSeismicField:
             for p in self.polarizations:
                 total_map_power_sq += np.sum(np.abs(self.maps[freq][p])**2)
 
-            # normalization constant needed so total power is the asd**2 at this frequency
+            # normalization constant needed so total power is the asd**2
+            # at this frequency
             total_map_power = np.sqrt(total_map_power_sq)
             norm = self.asd[freq] / total_map_power
 
@@ -287,6 +244,12 @@ class CoherentSeismicField:
             for p in self.polarizations:
                 # sqrt(2) converts rms to p2p
                 self.maps[freq][p] *= norm * np.sqrt(2)
+            print('F=%e Hz, seismic budget: Power=%e, R=%e, P=%e, SH=%e, SV=%e' % (freq,
+                                                                                   total_map_power,
+                                                                                   ppower['r']/total_map_power,
+                                                                                   ppower['p']/total_map_power,
+                                                                                   ppower['sh']/total_map_power,
+                                                                                   ppower['sv']/total_map_power))
 
     def get_amplitude(self, freq, pol):
         """
