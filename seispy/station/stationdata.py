@@ -295,26 +295,6 @@ class SeismometerArray(OrderedDict):
     def _gen_pwave(cls, stations, amplitude, phi, theta, frequency, duration,
                    Fs=100, c=3000, phase=0, phase_noise_amp=0):
         """
-
-        Parameters
-        ----------
-        stations : `seispy.station.StationArray` or `OrderedDict`
-            ordered dict of stations, channels, locations
-        amplitude : `float`
-            amplitude of pwave
-        phi
-        theta
-        frequency
-        duration
-        Fs
-        c
-        noise_amp
-        phase
-        segdur
-
-        Returns
-        -------
-
         """
         cphi = np.cos(phi)
         sphi = np.sin(phi)
@@ -360,38 +340,6 @@ class SeismometerArray(OrderedDict):
     def _gen_lwave(cls, stations, amplitude, phi, theta, decay_param,
                    frequency, duration, phase=0, Fs=100, c=3000):
         """
-        simulate l-wave in a certain direction
-
-        Parameters
-        ----------
-        stations : `dict`
-            dictionary of station locations
-        amplitude : `float`
-            amplitude of input wave
-        phi : `float`
-            azimuth in radians
-        theta : `float`
-            polar angle from north pole in radians
-        decay parameter : `float`
-            l-wave decay parameter from eigenfunction
-        frequency : `float`
-            frequency of source
-        duration : `float`
-            duration of signal to simulate
-        Fs : `float`, optional, default=100 Hz
-            sample rate (int preferred)
-        c : `float`, optional, default=3000 m/s
-            speed of wave
-        phase : `float`, optional, default=0
-            phase delay of wave in radians
-
-        Returns
-        -------
-        data : `dict`
-            2-layer dict with first keys as stations,
-            second keys as channels for each station.
-            Each entry is the data for that channel
-            for that station for a simulated wave.
         """
         cphi = np.cos(phi)
         sphi = np.sin(phi)
@@ -450,39 +398,6 @@ class SeismometerArray(OrderedDict):
     def _gen_swave(cls, stations, amplitude, phi, theta, psi, frequency,
                    duration, phase=0, Fs=100, c=3000):
         """
-        simulate s-wave in a certain direction
-
-        Parameters
-        ----------
-        stations : `dict`
-            dictionary of station locations
-        amplitude : `float`
-            amplitude of input wave
-        phi : `float`
-            azimuth in radians
-        theta : `float`
-            polar angle from north pole in radians
-        psi : `float`
-            s-wave polarization angle from horizontal
-            E-N plane in radians
-        frequency : `float`
-            frequency of source
-        duration : `float`
-            duration of signal to simulate
-        Fs : `float`, optional, default=100 Hz
-            sample rate (int preferred)
-        c : `float`, optional, default=3000 m/s
-            speed of wave
-        phase : `float`, optional, default=0
-            phase delay of wave in radians
-
-        Returns
-        -------
-        data : `dict`
-            2-layer dict with first keys as stations,
-            second keys as channels for each station.
-            Each entry is the data for that channel
-            for that station for a simulated wave.
         """
         cphi = np.cos(phi)
         sphi = np.sin(phi)
@@ -533,26 +448,6 @@ class SeismometerArray(OrderedDict):
     def _gen_rwave(cls, stations, amplitude, phi, theta, rwave_params,
                    frequency, duration, Fs=100, phase=0):
         """
-
-        Parameters
-        ----------
-        stations
-        amplitude
-        phi
-        theta
-        epsilon
-        alpha
-        frequency
-        duration
-        Fs
-        c
-        noise_amp
-        phase
-        segdur
-
-        Returns
-        -------
-
         """
         # read r-wave eigenfunctions from dict
         C2 = rwave_params['C2']
