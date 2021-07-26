@@ -40,7 +40,7 @@ def noise_from_psd(length, sample_rate, psd, seed=0, name=None, unit=u.m):
 
     noise_power = psd / 2.
     time = np.arange(length) / sample_rate
-    fake_ts = np.random.normal(scale=np.sqrt(noise_power), size=time.shape)
+    fake_ts = np.random.normal(size=time.shape)*np.sqrt(noise_power.value)
 
     # THIS WOULD WORK FOR ARBITRARY PSDS ###
     # # fake real and imaginary parts

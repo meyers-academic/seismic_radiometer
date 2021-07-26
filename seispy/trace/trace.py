@@ -427,7 +427,8 @@ def fetch(st, et, channel, framedir='./'):
             vals = np.hstack((vals, val.value))
         else:
             continue
-    TS = Trace(vals, x0=st, dx=val.dx, name=val.name, channel=val.channel)
+    # print(st.seconds, val.dx.value, val.name, val.channel)
+    TS = Trace(vals, x0=st.gpsSeconds, dx=val.dx.value, name=val.name, channel=val.channel)
     loc = TS.get_location()
     TS.location = loc
     return TS

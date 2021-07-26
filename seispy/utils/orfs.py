@@ -537,7 +537,7 @@ def orf_picker(string, ch1_vec, ch2_vec,
                rayleigh_paramdict=None,
                decay_parameter=None
                ):
-    if string is 'r':
+    if string == 'r':
         g1, p, t = orf_r_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
                                      f, thetas=thetas,
                                      phis=phis, healpy=healpy,
@@ -546,18 +546,18 @@ def orf_picker(string, ch1_vec, ch2_vec,
                                      v=v,
                                      )
         return g1.reshape((g1.size, 1)), g1.shape
-    if string is 's':
+    if string == 's':
         g1, g2, p, t = orf_s_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
                                          v, f, thetas=thetas, phis=phis,
                                          healpy=healpy)
         return g1.reshape((g1.size, 1)), g2.reshape((g2.size, 1)),\
             g1.shape, g2.shape
-    if string is 'p':
+    if string == 'p':
         g1, p, t = orf_p_directional2(ch1_vec, ch2_vec, det1_loc, det2_loc,
                                       v, f, thetas=thetas,
                                       phis=phis, healpy=healpy)
         return g1.reshape((g1.size, 1)), g1.shape
-    if string is 'l':
+    if string == 'l':
         g1, p, t = orf_l_directional(ch1_vec, ch2_vec, det1_loc, det2_loc,
                                      v, f, decay_parameter=decay_parameter, thetas=thetas,
                                      phis=phis, healpy=healpy)
