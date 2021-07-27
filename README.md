@@ -63,4 +63,8 @@ It should then bring up a browser window with a file tree with all of the availa
 
 * Currently, we have included the locations for the homestake seismometer array in `dict` format in `seispy/station/station.py`. The specifications are units of meters, where the first value is EW, second value is NS, and third value is either depth (if coords=='depth', which is standard), or elevation (if coords=='utc'). Units are in meters. Accessing these are fairly straightforward, and examples are shown in the notebooks.
 
+* Things like "fetch data" are currently only built for the Homestake array, and are written to fetch data from their location on a supercomputing cluster. I hope to update this in the near future to fetch stations from IRIS, for example.
+
+* Plotting 3D maps requires matplotlib's `basemap`, which can sometimes be painful to install. I have also had issues pointing to it in my python installation (there may be residual evidence of this in the notebooks that you need to comment out). Please reach out if you have issues. It may be worthwhile to explore plotting with different projections that maybe don't require `basemap`.
+
 ## FAQs:

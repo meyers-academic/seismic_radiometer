@@ -255,37 +255,6 @@ class SeismometerArray(OrderedDict):
                     _ = newdict[key2].pop(key2)
         return newdict
 
-    def mean_rz_phase(self, flow, fhigh, *args, **kwargs):
-        phases = SeismometerArraySpectrum()
-        phases_stds = SeismometerArraySpectrum()
-        for sta in list(self.keys()):
-            phases[sta] = OrderedDict()
-            phases_stds[sta] = OrderedDict()
-            try:
-                phase = self[sta]['HHR'].csd_spectrogram(self[sta]['HHZ'],
-                                                         *args,
-                                                         **kwargs)
-            except KeyError:
-                raise KeyError('No radial channel defined yet')
-            freqs = phase.frequencies.value
-            phase = np.angle(phase)
-            phase_avg = FrequencySeries(np.mean((phase), axis=0),
-                                        frequencies=freqs)
-            phase_stds = FrequencySeries(np.std((phase), axis=0),
-                                         frequencies=freqs)
-            phases[sta]['phase'] = phase_avg
-            phases_stds[sta]['phase'] = phase_stds
-        return phases, phases_stds
-
-    def spectrogram(self, *args, **kwargs):
-        spec_dict = SeismometerArraySpecgram()
-        for loc in list(self.keys()):
-            spec_dict[loc] = {}
-            for chan in list(self[loc].keys()):
-                spec_dict[loc][chan] = self[loc][chan].spectrogram(*args,
-                                                                   **kwargs)
-        return spec_dict
-
     def __copy__(self):
         new = type(self)()
         for key in list(self.keys()):
@@ -1230,7 +1199,7 @@ class SeismometerArray(OrderedDict):
                                                          nside=nside)[0]))
         R = R.T
         if Y is None:
-            Y = self.get_coherences(frequency, fft_duration=fft_duration)
+            Y = self.get_coherences(frequency, fft_duration=fft_duration) / fft_duration
         Fisher = np.dot(R.T.conj(), R)
         InvFisher = pinv(Fisher, rcond=inv_condition)
         recovery = np.dot(InvFisher, np.dot(R.T.conj(), Y))
