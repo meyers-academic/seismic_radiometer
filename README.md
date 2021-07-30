@@ -38,6 +38,8 @@ certain matplotlib plotting libraries (one of which, if I recall, requires insta
 conda create --name myenv
 # activate env
 conda activate myenv
+# Install some packages needed with conda
+conda install basemap
 # install pip because
 # not everything is conda installable
 conda install pip
