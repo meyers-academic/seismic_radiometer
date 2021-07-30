@@ -4,12 +4,6 @@ matplotlib
 gwpy
 obspy
 astropy
-h5py
-lscsoft-glue
-pykerberos
 geographiclib
-deepdish
-dynesty
-corner
 jupyter
 healpy
